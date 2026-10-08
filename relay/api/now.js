@@ -26,7 +26,8 @@ async function call(op, params) {
     throw new Error(`${op}: ${text.slice(0, 160)}`);
   }
   const h = json?.response?.header;
-  if (h?.resultCode !== '00') throw new Error(`${op} ${h?.resultCode}: ${h?.resultMsg}`);
+  if (!h) throw new Error(`${op} (HTTP ${res.status}): ${text.slice(0, 200)}`);
+  if (h.resultCode !== '00') throw new Error(`${op} ${h.resultCode}: ${h.resultMsg}`);
   return json.response.body.items.item;
 }
 
