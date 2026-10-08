@@ -1,3 +1,438 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>날씨</title></head>
-<body style="font-family:-apple-system,sans-serif;padding:60px 16px;text-align:center;color:#8b95a1;background:#fff">첫 날씨 업데이트를 기다리는 중입니다.</body></html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="color-scheme" content="light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="날씨">
+<meta name="format-detection" content="telephone=no">
+<title>날씨</title>
+<style>
+:root{--bg:#fff;--text:#191f28;--sub:#4e5968;--muted:#8b95a1;--faint:#b0b8c1;--line:#f2f4f6;--chip:#f9fafb;--blue:#3182f6;--red:#f04452}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;letter-spacing:-.01em}
+ul{list-style:none;margin:0;padding:0}
+p{margin:0}
+.top{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.88);-webkit-backdrop-filter:saturate(180%) blur(16px);backdrop-filter:saturate(180%) blur(16px);padding:calc(env(safe-area-inset-top) + 10px) 16px 10px}
+.tabs{display:flex;background:#f2f4f6;border-radius:12px;padding:3px;max-width:420px;margin:0 auto}
+.tabs button{flex:1;border:0;background:transparent;font:inherit;font-size:15px;font-weight:600;color:var(--muted);padding:9px 0;border-radius:9px;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s}
+.tabs button[aria-selected="true"]{background:#fff;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.pager{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;align-items:flex-start;overscroll-behavior-x:contain}
+.pager::-webkit-scrollbar{display:none}
+.panel{scroll-margin-top:90px;flex:0 0 100%;width:100%;scroll-snap-align:start;scroll-snap-stop:always;padding:4px 16px calc(env(safe-area-inset-bottom) + 28px);max-width:100%}
+.panel>*{max-width:560px;margin-left:auto;margin-right:auto}
+.hero{text-align:center;padding:18px 0 22px}
+.place{font-size:17px;font-weight:700}
+.place small{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-top:1px}
+.ic-big{font-size:64px;line-height:1;margin:16px 0 6px}
+.temp{font-size:76px;font-weight:200;line-height:1;letter-spacing:-.04em;margin-left:.15em;font-variant-numeric:tabular-nums}
+.temp span{font-weight:200;color:var(--sub)}
+.desc{font-size:18px;font-weight:600;margin-top:10px}
+.range{color:var(--muted);font-size:14px;margin-top:4px}
+.range b{font-weight:600}
+.range i{display:inline-block;width:1px;height:10px;background:#d1d6db;margin:0 9px;vertical-align:-1px}
+.lo{color:var(--blue)}.hi-t{color:var(--red)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);background:var(--chip);border-radius:16px;padding:14px 4px}
+.stats div{display:flex;flex-direction:column;align-items:center;gap:2px}
+.stats div+div{border-left:1px solid #eceef1}
+.stats small{font-size:12px;color:var(--muted)}
+.stats b{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.stats em{font-style:normal;font-size:12px;font-weight:500;color:var(--muted);margin-left:2px}
+h2{font-size:15px;font-weight:700;margin-top:28px;margin-bottom:10px}
+h2 small{font-size:12px;font-weight:500;color:var(--muted);margin-left:4px}
+.hours{display:flex;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 10px;overscroll-behavior-x:contain;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%)}
+.hours::-webkit-scrollbar{display:none}
+.h{flex:0 0 54px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 0;border-radius:14px}
+.h.now{background:var(--chip)}
+.h.nd{position:relative}
+.h.nd::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:1px;background:#e5e8eb}
+.hh{font-size:12px;color:var(--muted);font-weight:500}
+.h.now .hh{color:var(--text);font-weight:700}
+.hi{font-size:24px;line-height:1.15}
+.ht{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.hp{font-size:11px;color:var(--blue);min-height:15px;font-variant-numeric:tabular-nums}
+.strong{font-weight:700}
+.d{display:grid;grid-template-columns:1fr 64px 64px 84px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.d:first-child{border-top:0}
+.dl{display:flex;flex-direction:column;line-height:1.25}
+.dl b{font-size:15px;font-weight:600}
+.dl small{font-size:12px;color:var(--muted)}
+.half{display:flex;align-items:center;gap:3px;justify-content:center}
+.di{font-size:22px;line-height:1}
+.dim{color:var(--faint)}
+.dp{font-size:11px;color:var(--blue);width:26px;font-variant-numeric:tabular-nums}
+.mm{display:flex;justify-content:flex-end;gap:10px;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.src{font-size:11px;color:var(--faint);text-align:center;margin-top:24px}
+footer{text-align:center;font-size:12px;color:var(--muted);padding:0 16px calc(env(safe-area-inset-bottom) + 20px)}
+.dots{display:flex;justify-content:center;gap:6px;margin:2px 0 10px}
+.dots span{width:6px;height:6px;border-radius:50%;background:#d1d6db;transition:background .2s,width .2s}
+.dots span.on{background:var(--text);width:16px;border-radius:3px}
+@media (min-width:700px){.hours{margin:0;padding:0;-webkit-mask-image:none;mask-image:none}}
+</style>
+</head>
+<body>
+<div class="top"><nav class="tabs" role="tablist" aria-label="지역"><button role="tab" type="button" data-i="0" aria-selected="true" aria-controls="p-chuncheon">춘천</button><button role="tab" type="button" data-i="1" aria-selected="false" aria-controls="p-seoul">서울</button></nav></div>
+<main class="pager" id="pager">
+<section class="panel" id="p-chuncheon" aria-label="춘천 날씨">
+    <div class="hero">
+      <p class="place">춘천 <small>춘천시청 기준</small></p>
+      <div class="ic-big" role="img" aria-label="맑음">☀️</div>
+      <p class="temp">24.8<span>°</span></p>
+      <p class="desc">맑음</p>
+      <p class="range">최저 <b class="lo">8°</b><i></i>최고 <b class="hi-t">24°</b></p>
+    </div>
+
+    <div class="stats">
+      <div><small>습도</small><b>35%</b></div>
+      <div><small>바람</small><b>1.4<em>m/s</em></b></div>
+      <div><small>강수확률</small><b>0%</b></div>
+    </div>
+
+    <h2>시간별</h2>
+    <ul class="hours"><li class="h now">
+          <span class="hh">지금</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">25°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">16시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">23°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">17시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">21°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">18시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">18°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">19시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">16°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">20시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">15°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">21시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">14°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">22시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">13°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">23시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">12°</span>
+          <span class="hp"></span>
+        </li><li class="h nd">
+          <span class="hh">9일</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">12°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">1시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">11°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">2시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">11°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">3시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">10°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">4시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">10°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">5시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">10°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">6시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">10°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">7시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">10°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">8시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">11°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">9시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">13°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">10시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">15°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">11시</span>
+          <span class="hi" role="img" aria-label="구름많음">⛅</span>
+          <span class="ht">18°</span>
+          <span class="hp">20%</span>
+        </li><li class="h">
+          <span class="hh">12시</span>
+          <span class="hi" role="img" aria-label="구름많음">⛅</span>
+          <span class="ht">21°</span>
+          <span class="hp">20%</span>
+        </li><li class="h">
+          <span class="hh">13시</span>
+          <span class="hi" role="img" aria-label="구름많음">⛅</span>
+          <span class="ht">23°</span>
+          <span class="hp">20%</span>
+        </li><li class="h">
+          <span class="hh">14시</span>
+          <span class="hi" role="img" aria-label="구름많음">⛅</span>
+          <span class="ht">24°</span>
+          <span class="hp">20%</span>
+        </li></ul>
+
+    <h2>날짜별 <small>오전 · 오후</small></h2>
+    <ul class="days"><li class="d">
+          <span class="dl"><b>오늘</b><small>10.8 목</small></span>
+          <span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp"></span></span><span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp"></span></span>
+          <span class="mm"><span class="lo">8°</span><span class="hi-t">24°</span></span>
+        </li><li class="d">
+          <span class="dl"><b>내일</b><small>10.9 금</small></span>
+          <span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp">20%</span></span><span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp">20%</span></span>
+          <span class="mm"><span class="lo">9°</span><span class="hi-t">24°</span></span>
+        </li><li class="d">
+          <span class="dl"><b>모레</b><small>10.10 토</small></span>
+          <span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp"></span></span><span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp">20%</span></span>
+          <span class="mm"><span class="lo">10°</span><span class="hi-t">24°</span></span>
+        </li><li class="d">
+          <span class="dl"><b>글피</b><small>10.11 일</small></span>
+          <span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp">10%</span></span><span class="half"><span class="di" role="img" aria-label="구름많음">⛅</span><span class="dp">30%</span></span>
+          <span class="mm"><span class="lo">13°</span><span class="hi-t">25°</span></span>
+        </li></ul>
+
+    <p class="src">기상청 10/08 14:00 발표 · 격자 73, 134</p>
+  </section>
+<section class="panel" id="p-seoul" aria-label="서울 날씨">
+    <div class="hero">
+      <p class="place">서울 <small>서울시청 기준</small></p>
+      <div class="ic-big" role="img" aria-label="맑음">☀️</div>
+      <p class="temp">25.2<span>°</span></p>
+      <p class="desc">맑음</p>
+      <p class="range">최저 <b class="lo">12°</b><i></i>최고 <b class="hi-t">24°</b></p>
+    </div>
+
+    <div class="stats">
+      <div><small>습도</small><b>32%</b></div>
+      <div><small>바람</small><b>1.8<em>m/s</em></b></div>
+      <div><small>강수확률</small><b>0%</b></div>
+    </div>
+
+    <h2>시간별</h2>
+    <ul class="hours"><li class="h now">
+          <span class="hh">지금</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">25°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">16시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">24°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">17시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">23°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">18시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">21°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">19시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">20°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">20시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">19°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">21시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">18°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">22시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">17°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">23시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">16°</span>
+          <span class="hp"></span>
+        </li><li class="h nd">
+          <span class="hh">9일</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">16°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">1시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">15°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">2시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">15°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">3시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">14°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">4시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">14°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">5시</span>
+          <span class="hi" role="img" aria-label="맑음">🌙</span>
+          <span class="ht">13°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">6시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">13°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">7시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">13°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">8시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">14°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">9시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">17°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">10시</span>
+          <span class="hi" role="img" aria-label="구름많음">⛅</span>
+          <span class="ht">19°</span>
+          <span class="hp">20%</span>
+        </li><li class="h">
+          <span class="hh">11시</span>
+          <span class="hi" role="img" aria-label="구름많음">⛅</span>
+          <span class="ht">21°</span>
+          <span class="hp">20%</span>
+        </li><li class="h">
+          <span class="hh">12시</span>
+          <span class="hi" role="img" aria-label="맑음">☀️</span>
+          <span class="ht">23°</span>
+          <span class="hp"></span>
+        </li><li class="h">
+          <span class="hh">13시</span>
+          <span class="hi" role="img" aria-label="구름많음">⛅</span>
+          <span class="ht">24°</span>
+          <span class="hp">20%</span>
+        </li><li class="h">
+          <span class="hh">14시</span>
+          <span class="hi" role="img" aria-label="구름많음">⛅</span>
+          <span class="ht">24°</span>
+          <span class="hp">20%</span>
+        </li></ul>
+
+    <h2>날짜별 <small>오전 · 오후</small></h2>
+    <ul class="days"><li class="d">
+          <span class="dl"><b>오늘</b><small>10.8 목</small></span>
+          <span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp"></span></span><span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp"></span></span>
+          <span class="mm"><span class="lo">12°</span><span class="hi-t">24°</span></span>
+        </li><li class="d">
+          <span class="dl"><b>내일</b><small>10.9 금</small></span>
+          <span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp">20%</span></span><span class="half"><span class="di" role="img" aria-label="구름많음">⛅</span><span class="dp">20%</span></span>
+          <span class="mm"><span class="lo">13°</span><span class="hi-t">25°</span></span>
+        </li><li class="d">
+          <span class="dl"><b>모레</b><small>10.10 토</small></span>
+          <span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp">20%</span></span><span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp">20%</span></span>
+          <span class="mm"><span class="lo">14°</span><span class="hi-t">25°</span></span>
+        </li><li class="d">
+          <span class="dl"><b>글피</b><small>10.11 일</small></span>
+          <span class="half"><span class="di" role="img" aria-label="맑음">☀️</span><span class="dp"></span></span><span class="half"><span class="di" role="img" aria-label="구름많음">⛅</span><span class="dp">30%</span></span>
+          <span class="mm"><span class="lo">16°</span><span class="hi-t">26°</span></span>
+        </li></ul>
+
+    <p class="src">기상청 10/08 14:00 발표 · 격자 60, 127</p>
+  </section>
+</main>
+<footer>
+  <div class="dots" aria-hidden="true"><span class="on"></span><span></span></div>
+  10월 8일 15:56 업데이트 · 자료 기상청
+</footer>
+<script>
+(() => {
+  const pager = document.getElementById('pager');
+  const tabs = [...document.querySelectorAll('[role=tab]')];
+  const dots = [...document.querySelectorAll('.dots span')];
+  const ids = tabs.map((t) => t.getAttribute('aria-controls').slice(2));
+  let cur = -1;
+  const mark = (i) => {
+    if (i === cur) return;
+    cur = i;
+    tabs.forEach((t, j) => t.setAttribute('aria-selected', String(j === i)));
+    dots.forEach((d, j) => d.classList.toggle('on', j === i));
+    try { localStorage.setItem('tab', ids[i]); } catch (e) {}
+    history.replaceState(null, '', '#' + ids[i]);
+  };
+  const go = (i, smooth) => {
+    pager.scrollTo({ left: i * pager.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
+    mark(i);
+  };
+  tabs.forEach((t, i) => t.addEventListener('click', () => {
+    if (i === cur) window.scrollTo({ top: 0, behavior: 'smooth' });
+    go(i, true);
+  }));
+  let raf;
+  pager.addEventListener('scroll', () => {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => mark(Math.round(pager.scrollLeft / pager.clientWidth)));
+  }, { passive: true });
+  addEventListener('resize', () => go(cur, false));
+  let saved = location.hash.slice(1);
+  if (!ids.includes(saved)) { try { saved = localStorage.getItem('tab'); } catch (e) {} }
+  go(Math.max(0, ids.indexOf(saved)), false);
+})();
+</script>
+</body>
+</html>
