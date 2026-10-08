@@ -336,8 +336,12 @@ const ICON_DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidd
 <symbol id="s-mix" viewBox="0 0 64 64"><path d="M24 50l-3 8M44 50l-3 8" stroke="#3d8bfd" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="56" r="3.2" fill="#7cb6f2"/></symbol>
 </defs></svg>`;
 
+// 밤낮 판단: 렌더 중인 지역의 일출·일몰(분). hour는 소수 가능(현재 시각), 정시 예보칸은 칸 중간(:30) 기준
+let SUN = { rise: 6 * 60, set: 19 * 60 };
+const toMin = (hhmm) => +hhmm.slice(0, 2) * 60 + +hhmm.slice(3, 5);
 function iconInner(sky, pty, hour) {
-  const night = hour !== undefined && (hour < 6 || hour >= 19);
+  const m = hour === undefined ? 12 * 60 : Number.isInteger(hour) ? hour * 60 + 30 : hour * 60;
+  const night = m < SUN.rise || m >= SUN.set;
   const body = night ? 's-moon' : 's-sun';
   const wet = pty && pty !== '0';
   if (wet) {
@@ -435,6 +439,7 @@ function hourlyCharts(loc, today) {
 
 function renderPanel(loc, today, nowHour) {
   const c = loc.current;
+  SUN = { rise: toMin(c.sunrise), set: toMin(c.sunset) };
   const td = loc.daily[0];
   const vs =
     c.vsYesterday === null
@@ -694,7 +699,7 @@ const data = {
 };
 await mkdir(OUT, { recursive: true });
 await writeFile(new URL('data.json', OUT), JSON.stringify(data, null, 2) + '\n');
-await writeFile(new URL('index.html', OUT), render(data, ymd(now), now.getUTCHours()));
+await writeFile(new URL('index.html', OUT), render(data, ymd(now), now.getUTCHours() + now.getUTCMinutes() / 60 + 1e-6));
 await writeFile(new URL('.nojekyll', OUT), '');
 if (!MOCK) await writeFile(HISTORY, JSON.stringify(history, null, 1) + '\n');
 for (const l of locations) {
