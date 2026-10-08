@@ -1,0 +1,6 @@
+{
+  "name": "kma-weather-relay",
+  "private": true,
+  "type": "module",
+  "description": "기상청 실황 중계 (Vercel 함수). 인증키는 Vercel 환경변수 KMA_SERVICE_KEY"
+}
