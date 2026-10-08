@@ -619,6 +619,10 @@ h2{font-size:17px;font-weight:800}
 .lo{color:var(--blue)}.hi{color:var(--red)}
 .sl{color:var(--faint);margin:0 3px;font-weight:400}
 .src{font-size:11px;color:var(--faint);text-align:center;margin-top:12px}
+.ptr{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);width:38px;height:38px;margin-left:-19px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.14);display:flex;align-items:center;justify-content:center;z-index:4;opacity:0;transform:translateY(-60px);pointer-events:none}
+.ptr svg{width:20px;height:20px}
+.ptr.spin svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 footer{text-align:center;font-size:12px;color:var(--muted);padding:0 16px calc(env(safe-area-inset-bottom) + 20px)}
 @media (max-width:360px){.days .d{grid-template-columns:1fr 64px 64px 72px}.chips b{font-size:13px}.info{gap:10px}}
 </style>
@@ -632,6 +636,7 @@ ${ICON_DEFS}
 <main class="pager" id="pager">
 ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
 </main>
+<div class="ptr" id="ptr" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#03c75a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></div>
 <footer>${esc(data.updatedAt)} 업데이트 · 자료 기상청</footer>
 <script>
 (() => {
@@ -663,6 +668,46 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
   let saved = location.hash.slice(1);
   if (!ids.includes(saved)) { try { saved = localStorage.getItem('tab'); } catch (e) {} }
   go(Math.max(0, ids.indexOf(saved)), false);
+
+  // 당겨서 새로고침: 홈 화면 앱 모드용 (Safari 탭에는 기본 기능이 있음). 테스트: 주소 끝에 ?ptr=1
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches || /[?&]ptr=1/.test(location.search);
+  const ptr = document.getElementById('ptr');
+  if (standalone && ptr) {
+    const TH = 70;
+    let y0 = null, x0 = 0, dy = 0, pulling = false;
+    const set = (d, anim) => {
+      ptr.style.transition = anim ? 'transform .25s, opacity .25s' : 'none';
+      ptr.style.opacity = String(Math.min(1, d / TH));
+      ptr.style.transform = 'translateY(' + (Math.min(d, TH * 1.4) - 60) + 'px) rotate(' + d * 3 + 'deg)';
+    };
+    addEventListener('touchstart', (e) => {
+      y0 = window.scrollY > 0 || e.touches.length !== 1 ? null : e.touches[0].clientY;
+      if (y0 !== null) { x0 = e.touches[0].clientX; dy = 0; pulling = false; }
+    }, { passive: true });
+    addEventListener('touchmove', (e) => {
+      if (y0 === null) return;
+      const ddy = e.touches[0].clientY - y0, ddx = e.touches[0].clientX - x0;
+      if (!pulling) {
+        // 좌우 스와이프(지역 전환)나 위로 스크롤이면 무시
+        if (Math.abs(ddx) > Math.abs(ddy) || ddy < 0) { if (Math.abs(ddx) > 8 || ddy < -8) y0 = null; return; }
+        if (ddy < 8) return;
+        pulling = true;
+      }
+      dy = ddy * 0.5;
+      e.preventDefault();
+      set(dy, false);
+    }, { passive: false });
+    addEventListener('touchend', () => {
+      if (!pulling) { y0 = null; return; }
+      y0 = null;
+      pulling = false;
+      if (dy >= TH) {
+        ptr.classList.add('spin');
+        set(TH, true);
+        setTimeout(() => location.replace(location.pathname + '?v=' + Date.now() + location.hash), 300);
+      } else set(0, true);
+    });
+  }
 
   // 캐시된 옛 화면이면 최신 버전으로 자동 새로고침 (앱을 다시 열 때도 확인)
   const BUILT = ${JSON.stringify(data.updatedAt)};
