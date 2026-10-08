@@ -399,7 +399,7 @@ function hourlyCharts(loc, today) {
     ${dayLines(6, 160)}
     ${hs.map((h, i) => `<svg x="${cx(i) - 17}" y="18" width="34" height="34" viewBox="0 0 64 64">${iconInner(h.sky, h.pty, h.hour)}</svg>`).join('')}
     <polyline points="${pts}" class="ln"/>
-    ${temps.map((t, i) => `<circle cx="${cx(i)}" cy="${ty(t).toFixed(1)}" r="3.5" class="${i === 0 ? 'dot now' : 'dot'}"/><text x="${cx(i)}" y="${(ty(t) - 11).toFixed(1)}" class="tv">${t}°</text>`).join('')}
+    ${temps.map((t, i) => `<circle cx="${cx(i)}" cy="${ty(t).toFixed(1)}" r="3.5" class="${i === 0 ? 'dot now' : 'dot'}"/><text x="${cx(i)}" y="${(ty(t) - 11).toFixed(1)}" class="tv"${i === 0 ? ' data-k="now"' : ''}>${t}°</text>`).join('')}
     ${timeRow(156)}
   </svg>`;
 
@@ -465,21 +465,21 @@ function renderPanel(loc, today, nowHour) {
     })
     .join('');
 
-  return `<section class="panel" id="p-${esc(loc.id)}" aria-label="${esc(loc.name)} 날씨">
+  return `<section class="panel" id="p-${esc(loc.id)}" aria-label="${esc(loc.name)} 날씨" data-nx="${loc.nx}" data-ny="${loc.ny}" data-rise="${c.sunrise}" data-set="${c.sunset}" data-sky="${esc(c.sky ?? '')}">
     <div class="card now">
       <p class="loc">${esc(loc.detail)}</p>
       <div class="hero">
-        ${iconSvg(c.sky, c.pty, nowHour, 'big', c.text)}
+        ${iconSvg(c.sky, c.pty, nowHour, 'big', c.text).replace('<svg ', '<svg data-k="icon" ')}
         <div class="tempbox">
-          <span class="lab">현재 온도</span>
-          <p class="temp">${c.temp}<span>°</span></p>
+          <span class="lab" data-k="lab">현재 온도</span>
+          <p class="temp"><b data-k="temp">${c.temp}</b><span>°</span></p>
         </div>
       </div>
-      <p class="sum"><b>${esc(c.text)}</b>${vs}</p>
+      <p class="sum"><b data-k="text">${esc(c.text)}</b><span data-k="vs">${vs}</span></p>
       <dl class="info">
-        <div><dt>체감</dt><dd>${c.feels}°</dd></div>
-        <div><dt>습도</dt><dd>${c.reh}%</dd></div>
-        <div><dt>${esc(c.wind)}</dt><dd>${c.wsd}m/s</dd></div>
+        <div><dt>체감</dt><dd data-k="feels">${c.feels}°</dd></div>
+        <div><dt>습도</dt><dd data-k="reh">${c.reh}%</dd></div>
+        <div><dt data-k="wind">${esc(c.wind)}</dt><dd data-k="wsd">${c.wsd}m/s</dd></div>
       </dl>
       <ul class="chips">
         <li><span>강수확률</span><b class="${c.pop >= 60 ? 'blue' : ''}">${c.pop}%</b></li>
@@ -559,6 +559,7 @@ button{font:inherit;cursor:pointer}
 .tempbox{display:flex;flex-direction:column}
 .lab{font-size:13px;color:var(--muted);margin-bottom:-4px}
 .temp{font-size:58px;font-weight:700;letter-spacing:-.05em;line-height:1.1;font-variant-numeric:tabular-nums}
+.temp b{font-weight:inherit}
 .temp span{font-weight:400;color:var(--sub);margin-left:2px}
 .sum{display:flex;justify-content:center;align-items:baseline;gap:8px;margin-top:10px;font-size:16px}
 .sum b{font-weight:800}
@@ -709,6 +710,54 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
     });
   }
 
+  // 현재 날씨 실시간 갱신: 페이지를 열 때마다 중계 서버(Cloudflare Worker)에서 기상청 최신 실황을 받아 교체
+  const LIVE = ${JSON.stringify(data.liveApi || '')};
+  const PTY = ${JSON.stringify(PTY)}, SKY = ${JSON.stringify(SKY)}, WIND16 = ${JSON.stringify(WIND16)};
+  let SUN = { rise: 360, set: 1140 };
+  const toMin = ${toMin.toString()};
+  const describe = ${describe.toString()};
+  const windName = ${windName.toString()};
+  ${feelsLike.toString()}
+  ${iconInner.toString()}
+  const p2 = (n) => String(n).padStart(2, '0');
+  let HIST = null;
+  const liveUpdate = async () => {
+    if (!LIVE) return;
+    if (!HIST) {
+      try { HIST = await (await fetch('history.json?t=' + Date.now(), { cache: 'no-store' })).json(); } catch (e) { HIST = {}; }
+    }
+    document.querySelectorAll('.panel[data-nx]').forEach(async (p) => {
+      try {
+        const r = await fetch(LIVE + '/now?nx=' + p.dataset.nx + '&ny=' + p.dataset.ny, { cache: 'no-store' });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d.t1h === null || d.t1h === undefined) return;
+        const q = (k) => p.querySelector('[data-k="' + k + '"]');
+        const sky = d.sky || p.dataset.sky, pty = d.pty ?? '0', hh = +d.baseTime.slice(0, 2);
+        const k = new Date(Date.now() + 9 * 3600e3);
+        SUN = { rise: toMin(p.dataset.rise), set: toMin(p.dataset.set) };
+        q('icon').innerHTML = iconInner(sky, pty, k.getUTCHours() + k.getUTCMinutes() / 60 + 1e-6);
+        q('temp').textContent = d.t1h;
+        q('text').textContent = describe(sky, pty);
+        q('lab').textContent = '현재 온도 · ' + hh + '시 관측';
+        if (d.reh !== null) q('reh').textContent = d.reh + '%';
+        if (d.wsd !== null) { q('wsd').textContent = d.wsd + 'm/s'; q('wind').textContent = windName(d.vec); }
+        q('feels').textContent = Math.round(feelsLike(d.t1h, d.reh ?? 50, d.wsd ?? 0, +d.baseDate.slice(4, 6)) * 10) / 10 + '°';
+        if (q('now')) q('now').textContent = Math.round(d.t1h) + '°';
+        // 어제 같은 시각 관측값(history.json)과 비교
+        const y = new Date(Date.UTC(+d.baseDate.slice(0, 4), +d.baseDate.slice(4, 6) - 1, +d.baseDate.slice(6, 8), hh) - 86400e3);
+        const prev = HIST?.[p.id.slice(2)]?.[y.getUTCFullYear() + p2(y.getUTCMonth() + 1) + p2(y.getUTCDate()) + p2(y.getUTCHours())];
+        if (prev !== undefined) {
+          const diff = Math.round((d.t1h - prev) * 10) / 10;
+          q('vs').innerHTML = diff === 0 ? '<span class="vs">어제와 같아요</span>'
+            : '<span class="vs">어제보다 <b class="' + (diff > 0 ? 'up' : 'down') + '">' + Math.abs(diff) + '°</b> ' + (diff > 0 ? '높아요' : '낮아요') + '</span>';
+        }
+      } catch (e) {}
+    });
+  };
+  liveUpdate();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) liveUpdate(); });
+
   // 캐시된 옛 화면이면 최신 버전으로 자동 새로고침 (앱을 다시 열 때도 확인)
   const BUILT = ${JSON.stringify(data.updatedAt)};
   const check = async () => {
@@ -758,6 +807,7 @@ for (const [i, loc] of config.locations.entries()) {
 
 const data = {
   title: config.title,
+  liveApi: config.liveApi || '',
   updatedAt: `${+(now.getUTCMonth() + 1)}월 ${now.getUTCDate()}일 ${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`,
   locations,
 };

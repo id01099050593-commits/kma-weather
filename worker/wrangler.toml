@@ -1,0 +1,5 @@
+name = "kma-weather-live"
+main = "index.js"
+compatibility_date = "2025-09-01"
+
+# 인증키는 여기에 적지 말 것 → Cloudflare 대시보드 또는 `wrangler secret put KMA_SERVICE_KEY`로 등록
