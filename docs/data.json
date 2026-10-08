@@ -1,6 +1,7 @@
 {
   "title": "날씨",
-  "updatedAt": "10월 8일 18:44",
+  "liveApi": "https://kma-weather-relay.vercel.app/api",
+  "updatedAt": "10월 8일 19:34",
   "locations": [
     {
       "id": "chuncheon",
@@ -29,19 +30,6 @@
         "sunset": "18:03"
       },
       "hourly": [
-        {
-          "date": "20261008",
-          "hour": 18,
-          "temp": 19,
-          "sky": "1",
-          "pty": "0",
-          "pop": 0,
-          "pcp": null,
-          "sno": null,
-          "reh": 60,
-          "wsd": 0.3,
-          "vec": 198
-        },
         {
           "date": "20261008",
           "hour": 19,
@@ -340,6 +328,19 @@
           "reh": 55,
           "wsd": 0.4,
           "vec": 180
+        },
+        {
+          "date": "20261009",
+          "hour": 18,
+          "temp": 19,
+          "sky": "3",
+          "pty": "0",
+          "pop": 20,
+          "pcp": null,
+          "sno": null,
+          "reh": 60,
+          "wsd": 0.3,
+          "vec": 198
         }
       ],
       "daily": [
@@ -457,19 +458,6 @@
         "sunset": "18:06"
       },
       "hourly": [
-        {
-          "date": "20261008",
-          "hour": 18,
-          "temp": 22,
-          "sky": "1",
-          "pty": "0",
-          "pop": 0,
-          "pcp": null,
-          "sno": null,
-          "reh": 50,
-          "wsd": 0.1,
-          "vec": 270
-        },
         {
           "date": "20261008",
           "hour": 19,
@@ -767,6 +755,19 @@
           "sno": null,
           "reh": 40,
           "wsd": 0.1,
+          "vec": 180
+        },
+        {
+          "date": "20261009",
+          "hour": 18,
+          "temp": 23,
+          "sky": "3",
+          "pty": "0",
+          "pop": 20,
+          "pcp": null,
+          "sno": null,
+          "reh": 50,
+          "wsd": 0.2,
           "vec": 180
         }
       ],
