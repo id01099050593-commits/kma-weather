@@ -664,6 +664,21 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
   if (!ids.includes(saved)) { try { saved = localStorage.getItem('tab'); } catch (e) {} }
   go(Math.max(0, ids.indexOf(saved)), false);
 
+  // 캐시된 옛 화면이면 최신 버전으로 자동 새로고침 (앱을 다시 열 때도 확인)
+  const BUILT = ${JSON.stringify(data.updatedAt)};
+  const check = async () => {
+    try {
+      const d = await (await fetch('data.json?t=' + Date.now(), { cache: 'no-store' })).json();
+      if (d.updatedAt === BUILT) { sessionStorage.removeItem('reloads'); return; }
+      const n = Number(sessionStorage.getItem('reloads') || 0);
+      if (n >= 2) return;
+      sessionStorage.setItem('reloads', String(n + 1));
+      location.replace(location.pathname + '?v=' + Date.now() + location.hash);
+    } catch (e) {}
+  };
+  check();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+
   // 시간별 예보 항목 전환 (날씨/강수/바람/습도)
   document.querySelectorAll('.seg').forEach((seg) => {
     const card = seg.closest('.card');
