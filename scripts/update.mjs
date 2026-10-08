@@ -59,10 +59,10 @@ function serviceKey() {
   return key.includes('%') ? decodeURIComponent(key) : key;
 }
 
-async function callApi(op, params) {
+async function callPage(op, params, pageNo) {
   const qs = new URLSearchParams({
     serviceKey: serviceKey(),
-    pageNo: '1',
+    pageNo: String(pageNo),
     numOfRows: '1000',
     dataType: 'JSON',
     ...params,
@@ -83,7 +83,7 @@ async function callApi(op, params) {
       if (header?.resultCode !== '00') {
         throw new Error(`${op} 오류 ${header?.resultCode}: ${header?.resultMsg}`);
       }
-      return json.response.body.items.item;
+      return json.response.body;
     } catch (e) {
       lastErr = e;
       console.warn(`[${attempt}/3] ${e.message}`);
@@ -93,32 +93,42 @@ async function callApi(op, params) {
   throw lastErr;
 }
 
+async function callApi(op, params) {
+  const items = [];
+  for (let page = 1; page <= 5; page++) {
+    const body = await callPage(op, params, page);
+    const got = body?.items?.item ?? [];
+    items.push(...got);
+    if (!got.length || items.length >= Number(body.totalCount)) break;
+  }
+  return items;
+}
+
 // ---------- 테스트용 가짜 데이터 (API와 같은 형식) ----------
-function mockData(base, grid) {
+function mockFcst(base, grid, seed) {
   const fcst = [];
   const start = new Date(Date.UTC(+base.base_date.slice(0, 4), +base.base_date.slice(4, 6) - 1, +base.base_date.slice(6, 8), +base.base_time.slice(0, 2) + 1));
-  for (let i = 0; i < 72; i++) {
+  for (let i = 0; i < 80; i++) {
     const t = new Date(start.getTime() + i * 3600e3);
     const h = t.getUTCHours();
     const add = (category, fcstValue) =>
       fcst.push({ category, fcstDate: ymd(t), fcstTime: `${pad(h)}00`, fcstValue: String(fcstValue), ...grid });
-    const temp = Math.round(14 + 7 * Math.sin(((h - 9) / 24) * 2 * Math.PI) + (i > 40 ? -3 : 0));
-    const rainy = i >= 30 && i <= 38;
+    const temp = Math.round(14 + seed + 7 * Math.sin(((h - 9) / 24) * 2 * Math.PI) + (i > 40 ? -3 : 0));
+    const rainy = i >= 30 + seed * 3 && i <= 38 + seed * 3;
     add('TMP', temp);
-    add('SKY', rainy ? 4 : i % 17 < 6 ? 3 : 1);
+    add('SKY', rainy ? 4 : (i + seed) % 17 < 6 ? 3 : 1);
     add('PTY', rainy ? 1 : 0);
-    add('POP', rainy ? 70 : i % 17 < 6 ? 30 : 0);
+    add('POP', rainy ? 70 : (i + seed) % 17 < 6 ? 30 : 0);
     add('PCP', rainy ? '1.0mm' : '강수없음');
     add('REH', 55 + (h % 7) * 4);
     add('WSD', (1.2 + (h % 5) * 0.6).toFixed(1));
     if (h === 6) add('TMN', temp);
     if (h === 15) add('TMX', temp);
   }
-  const ncst = [
-    ['T1H', 15.3], ['RN1', 0], ['REH', 62], ['WSD', 1.8], ['PTY', 0],
-  ].map(([category, obsrValue]) => ({ category, obsrValue: String(obsrValue) }));
-  return { fcst, ncst };
+  return fcst;
 }
+const mockNcst = (seed) =>
+  [['T1H', 15.3 + seed], ['RN1', 0], ['REH', 62], ['WSD', 1.8], ['PTY', 0]].map(([category, obsrValue]) => ({ category, obsrValue: String(obsrValue) }));
 
 // ---------- 데이터 가공 ----------
 const PTY = { 1: '비', 2: '비/눈', 3: '눈', 4: '소나기', 5: '빗방울', 6: '빗방울/눈날림', 7: '눈날림' };
@@ -137,7 +147,14 @@ const mode = (arr) => {
   return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0];
 };
 
-function build(fcstItems, ncstItems, now, base, grid) {
+// 최신 발표를 우선하고, 빠진 시각(오늘 지난 시간·오늘 최저기온 등)은 이른 발표로 채움
+function mergeFcst(latest, earlier) {
+  const key = (it) => it.category + it.fcstDate + it.fcstTime;
+  const seen = new Set(latest.map(key));
+  return [...latest, ...earlier.filter((it) => !seen.has(key(it)))];
+}
+
+function build(loc, grid, fcstItems, ncstItems, now, base) {
   const slots = new Map(); // "YYYYMMDDHHMM" -> {cat: value}
   const tmn = {}, tmx = {};
   for (const it of fcstItems) {
@@ -147,9 +164,10 @@ function build(fcstItems, ncstItems, now, base, grid) {
     if (!slots.has(k)) slots.set(k, { date: it.fcstDate, hour: Number(it.fcstTime.slice(0, 2)) });
     slots.get(k)[it.category] = it.fcstValue;
   }
-  const all = [...slots.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
+  const all = [...slots.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v).filter((s) => s.TMP !== undefined);
 
-  const nowKey = ymd(now) + pad(now.getUTCHours()) + '00';
+  const today = ymd(now);
+  const nowKey = today + pad(now.getUTCHours()) + '00';
   const upcoming = all.filter((s) => s.date + pad(s.hour) + '00' >= nowKey);
 
   const hourly = upcoming.slice(0, 24).map((s) => ({
@@ -168,9 +186,10 @@ function build(fcstItems, ncstItems, now, base, grid) {
     byDate.get(s.date).push(s);
   }
   const daily = [...byDate.entries()]
-    .filter(([d]) => d >= ymd(now))
+    // 오늘 이후, 그리고 마지막 날처럼 몇 시간만 있는 날은 제외
+    .filter(([d, list]) => d === today || (d > today && (list.length >= 18 || (tmn[d] !== undefined && tmx[d] !== undefined))))
     .map(([date, list]) => {
-      const temps = list.map((s) => Number(s.TMP)).filter((n) => !Number.isNaN(n));
+      const temps = list.map((s) => Number(s.TMP));
       const part = (from, to) => {
         const p = list.filter((s) => s.hour >= from && s.hour <= to);
         if (!p.length) return null;
@@ -191,25 +210,59 @@ function build(fcstItems, ncstItems, now, base, grid) {
   const ncst = Object.fromEntries((ncstItems || []).map((it) => [it.category, it.obsrValue]));
   const cur = upcoming[0] || all[all.length - 1];
   const pty = ncst.PTY ?? cur.PTY;
-  const current = {
-    temp: Number(ncst.T1H ?? cur.TMP),
-    sky: cur.SKY,
-    pty,
-    text: describe(cur.SKY, pty),
-    reh: Number(ncst.REH ?? cur.REH),
-    wsd: Number(ncst.WSD ?? cur.WSD),
-    rn1: ncst.RN1 && ncst.RN1 !== '0' && ncst.RN1 !== '강수없음' ? ncst.RN1 : null,
-    observed: Boolean(ncstItems),
-  };
-
   return {
-    location: { name: config.name, lat: config.lat, lon: config.lon, ...grid },
-    updatedAt: `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())} ${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`,
+    id: loc.id,
+    name: loc.name,
+    detail: loc.detail,
+    lat: loc.lat,
+    lon: loc.lon,
+    ...grid,
     issuedAt: `${base.base_date.slice(4, 6)}/${base.base_date.slice(6, 8)} ${base.base_time.slice(0, 2)}:00`,
-    current,
+    current: {
+      temp: Number(ncst.T1H ?? cur.TMP),
+      sky: cur.SKY,
+      pty,
+      text: describe(cur.SKY, pty),
+      reh: Number(ncst.REH ?? cur.REH),
+      wsd: Number(ncst.WSD ?? cur.WSD),
+      pop: Number(cur.POP ?? 0),
+      rn1: ncst.RN1 && ncst.RN1 !== '0' && ncst.RN1 !== '강수없음' ? ncst.RN1 : null,
+      observed: Boolean(ncstItems),
+    },
     hourly,
     daily,
   };
+}
+
+async function fetchLocation(loc, now, index) {
+  const grid = toGrid(loc.lat, loc.lon);
+  const vBase = vilageBase(now);
+  // 오늘 02시 발표: 오늘 최저기온(TMN)과 오늘 지난 시간대를 채우는 용도
+  const earlyBase = { base_date: ymd(now), base_time: '0200' };
+  const needEarly = vBase.base_date === earlyBase.base_date && vBase.base_time !== '0200';
+  console.log(`${loc.name} → 격자 nx=${grid.nx}, ny=${grid.ny} / 단기예보 ${vBase.base_date} ${vBase.base_time}`);
+
+  let latest, early = [], ncst = null;
+  if (MOCK) {
+    latest = mockFcst(vBase, grid, index * 2);
+    if (needEarly) early = mockFcst(earlyBase, grid, index * 2);
+    ncst = mockNcst(index * 2);
+  } else {
+    latest = await callApi('getVilageFcst', { ...vBase, ...grid });
+    if (needEarly) {
+      try {
+        early = await callApi('getVilageFcst', { ...earlyBase, ...grid });
+      } catch (e) {
+        console.warn(`${loc.name} 02시 발표 보조자료 실패, 생략: ${e.message}`);
+      }
+    }
+    try {
+      ncst = await callApi('getUltraSrtNcst', { ...ncstBase(now), ...grid });
+    } catch (e) {
+      console.warn(`${loc.name} 초단기실황 실패, 예보값으로 대체: ${e.message}`);
+    }
+  }
+  return build(loc, grid, mergeFcst(latest, early), ncst, now, vBase);
 }
 
 // ---------- HTML ----------
@@ -219,125 +272,189 @@ function dayLabel(date, today) {
   const d = new Date(Date.UTC(+date.slice(0, 4), +date.slice(4, 6) - 1, +date.slice(6, 8)));
   const t = new Date(Date.UTC(+today.slice(0, 4), +today.slice(4, 6) - 1, +today.slice(6, 8)));
   const diff = Math.round((d - t) / 86400e3);
-  const rel = ['오늘', '내일', '모레', '글피'][diff] ?? '';
-  return { rel, md: `${+date.slice(4, 6)}.${+date.slice(6, 8)} (${DOW[d.getUTCDay()]})` };
+  return { rel: ['오늘', '내일', '모레', '글피'][diff] ?? `${DOW[d.getUTCDay()]}요일`, md: `${+date.slice(4, 6)}.${+date.slice(6, 8)} ${DOW[d.getUTCDay()]}` };
 }
 
-function render(data, today) {
-  const c = data.current;
-  const td = data.daily[0];
-  const hourly = data.hourly
+function renderPanel(loc, today, nowHour) {
+  const c = loc.current;
+  const td = loc.daily[0];
+  const hourly = loc.hourly
     .map((h, i) => {
       const newDay = i > 0 && h.hour === 0;
-      return `<li class="h${newDay ? ' newday' : ''}">
-        <span class="hh">${newDay ? `${+h.date.slice(4, 6)}/${+h.date.slice(6, 8)}` : `${h.hour}시`}</span>
-        <span class="ic" aria-label="${esc(describe(h.sky, h.pty))}">${icon(h.sky, h.pty, h.hour)}</span>
-        <span class="tt">${h.temp}°</span>
-        <span class="pop${h.pop >= 60 ? ' hi' : ''}">${h.pop ? `${h.pop}%` : '&nbsp;'}</span>
-      </li>`;
+      const label = i === 0 ? '지금' : newDay ? `${+h.date.slice(6, 8)}일` : `${h.hour}시`;
+      return `<li class="h${newDay ? ' nd' : ''}${i === 0 ? ' now' : ''}">
+          <span class="hh">${label}</span>
+          <span class="hi" role="img" aria-label="${esc(describe(h.sky, h.pty))}">${icon(h.sky, h.pty, h.hour)}</span>
+          <span class="ht">${i === 0 ? Math.round(c.temp) : h.temp}°</span>
+          <span class="hp${h.pop >= 60 ? ' strong' : ''}">${h.pop ? `${h.pop}%` : ''}</span>
+        </li>`;
     })
     .join('');
   const half = (p) =>
     p
-      ? `<span class="half"><span class="ic sm">${icon(p.sky, p.pty, 12)}</span><span><span class="ht">${esc(p.text)}</span><span class="pop${p.pop >= 60 ? ' hi' : ''}">${p.pop}%</span></span></span>`
-      : '<span class="half muted">—</span>';
-  const daily = data.daily
+      ? `<span class="half"><span class="di" role="img" aria-label="${esc(p.text)}">${icon(p.sky, p.pty, 12)}</span><span class="dp${p.pop >= 60 ? ' strong' : ''}">${p.pop ? `${p.pop}%` : ''}</span></span>`
+      : '<span class="half"><span class="di dim">·</span><span class="dp"></span></span>';
+  const daily = loc.daily
     .map((d) => {
       const l = dayLabel(d.date, today);
       return `<li class="d">
-        <span class="dl"><b>${l.rel}</b><span class="muted">${l.md}</span></span>
-        ${half(d.am)}${half(d.pm)}
-        <span class="mm"><span class="lo">${d.min}°</span><span class="sep">/</span><span class="hi-t">${d.max}°</span></span>
-      </li>`;
+          <span class="dl"><b>${l.rel}</b><small>${l.md}</small></span>
+          ${half(d.am)}${half(d.pm)}
+          <span class="mm"><span class="lo">${d.min}°</span><span class="hi-t">${d.max}°</span></span>
+        </li>`;
     })
     .join('');
 
+  return `<section class="panel" id="p-${esc(loc.id)}" aria-label="${esc(loc.name)} 날씨">
+    <div class="hero">
+      <p class="place">${esc(loc.name)} <small>${esc(loc.detail)}</small></p>
+      <div class="ic-big" role="img" aria-label="${esc(c.text)}">${icon(c.sky, c.pty, nowHour)}</div>
+      <p class="temp">${c.temp}<span>°</span></p>
+      <p class="desc">${esc(c.text)}</p>
+      ${td ? `<p class="range">최저 <b class="lo">${td.min}°</b><i></i>최고 <b class="hi-t">${td.max}°</b></p>` : ''}
+    </div>
+
+    <div class="stats">
+      <div><small>습도</small><b>${c.reh}%</b></div>
+      <div><small>바람</small><b>${c.wsd}<em>m/s</em></b></div>
+      ${c.rn1
+        ? `<div><small>1시간 강수</small><b>${esc(String(c.rn1).replace(/\s*mm$/, ''))}<em>mm</em></b></div>`
+        : `<div><small>강수확률</small><b>${c.pop}%</b></div>`}
+    </div>
+
+    <h2>시간별</h2>
+    <ul class="hours">${hourly}</ul>
+
+    <h2>날짜별 <small>오전 · 오후</small></h2>
+    <ul class="days">${daily}</ul>
+
+    <p class="src">기상청 ${esc(loc.issuedAt)} 발표 · 격자 ${loc.nx}, ${loc.ny}</p>
+  </section>`;
+}
+
+function render(data, today, nowHour) {
+  const tabs = data.locations
+    .map((l, i) => `<button role="tab" type="button" data-i="${i}" aria-selected="${i === 0}" aria-controls="p-${esc(l.id)}">${esc(l.name)}</button>`)
+    .join('');
   return `<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(data.location.name)} 날씨</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="color-scheme" content="light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="${esc(data.title)}">
+<meta name="format-detection" content="telephone=no">
+<title>${esc(data.title)}</title>
 <style>
-:root{--bg:#f4f6f9;--card:#fff;--text:#16202c;--muted:#6b7684;--line:#e5e9ef;--accent:#2f6fdb;--rain:#2f6fdb;--hi:#d9480f;--lo:#2f6fdb}
-@media (prefers-color-scheme:dark){:root{--bg:#0f141a;--card:#18202a;--text:#e8edf3;--muted:#8d99a8;--line:#273240;--accent:#6ea2ff;--rain:#6ea2ff;--hi:#ff8a5c;--lo:#6ea2ff}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif}
-main{max-width:720px;margin:0 auto;padding:20px 16px 40px}
-header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-h1{font-size:20px;margin:0}
-.meta{color:var(--muted);font-size:13px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
-h2{font-size:14px;color:var(--muted);font-weight:600;margin:0 0 12px}
-.now{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
-.now .big{font-size:56px;font-weight:300;line-height:1;letter-spacing:-2px}
-.now .ic{font-size:52px;line-height:1}
-.now .desc{font-size:18px;font-weight:600}
-.now .range{color:var(--muted);margin-top:2px}
-.stats{display:flex;gap:18px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap}
-.stats div{display:flex;flex-direction:column}
-.stats span{color:var(--muted);font-size:12px}
-.stats b{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+:root{--bg:#fff;--text:#191f28;--sub:#4e5968;--muted:#8b95a1;--faint:#b0b8c1;--line:#f2f4f6;--chip:#f9fafb;--blue:#3182f6;--red:#f04452}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;letter-spacing:-.01em}
 ul{list-style:none;margin:0;padding:0}
-.hours{display:flex;overflow-x:auto;gap:2px;padding-bottom:6px;scrollbar-width:thin}
-.h{flex:0 0 52px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;border-radius:10px}
-.h.newday{border-left:1px dashed var(--line)}
-.hh{font-size:12px;color:var(--muted)}
-.h .ic{font-size:22px;line-height:1.2}
-.tt{font-weight:600;font-variant-numeric:tabular-nums}
-.pop{font-size:12px;color:var(--rain);font-variant-numeric:tabular-nums}
-.pop.hi{font-weight:700}
-.d{display:grid;grid-template-columns:92px 1fr 1fr 78px;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
-.d:first-child{border-top:0;padding-top:0}
-.dl{display:flex;flex-direction:column}
-.dl .muted{font-size:12px}
-.half{display:flex;align-items:center;gap:6px;font-size:13px}
-.half>span:last-child{display:flex;flex-direction:column;line-height:1.25}
-.ic.sm{font-size:20px}
-.mm{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
-.lo{color:var(--lo)}.hi-t{color:var(--hi)}.sep{color:var(--muted);margin:0 3px;font-weight:400}
-.muted{color:var(--muted)}
-footer{color:var(--muted);font-size:12px;text-align:center;margin-top:18px}
-footer a{color:inherit}
-@media (max-width:480px){.d{grid-template-columns:64px 1fr 1fr 64px;gap:6px}.half{font-size:12px}.now .big{font-size:48px}}
+p{margin:0}
+.top{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.88);-webkit-backdrop-filter:saturate(180%) blur(16px);backdrop-filter:saturate(180%) blur(16px);padding:calc(env(safe-area-inset-top) + 10px) 16px 10px}
+.tabs{display:flex;background:#f2f4f6;border-radius:12px;padding:3px;max-width:420px;margin:0 auto}
+.tabs button{flex:1;border:0;background:transparent;font:inherit;font-size:15px;font-weight:600;color:var(--muted);padding:9px 0;border-radius:9px;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s}
+.tabs button[aria-selected="true"]{background:#fff;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.pager{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;align-items:flex-start;overscroll-behavior-x:contain}
+.pager::-webkit-scrollbar{display:none}
+.panel{scroll-margin-top:90px;flex:0 0 100%;width:100%;scroll-snap-align:start;scroll-snap-stop:always;padding:4px 16px calc(env(safe-area-inset-bottom) + 28px);max-width:100%}
+.panel>*{max-width:560px;margin-left:auto;margin-right:auto}
+.hero{text-align:center;padding:18px 0 22px}
+.place{font-size:17px;font-weight:700}
+.place small{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-top:1px}
+.ic-big{font-size:64px;line-height:1;margin:16px 0 6px}
+.temp{font-size:76px;font-weight:200;line-height:1;letter-spacing:-.04em;margin-left:.15em;font-variant-numeric:tabular-nums}
+.temp span{font-weight:200;color:var(--sub)}
+.desc{font-size:18px;font-weight:600;margin-top:10px}
+.range{color:var(--muted);font-size:14px;margin-top:4px}
+.range b{font-weight:600}
+.range i{display:inline-block;width:1px;height:10px;background:#d1d6db;margin:0 9px;vertical-align:-1px}
+.lo{color:var(--blue)}.hi-t{color:var(--red)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);background:var(--chip);border-radius:16px;padding:14px 4px}
+.stats div{display:flex;flex-direction:column;align-items:center;gap:2px}
+.stats div+div{border-left:1px solid #eceef1}
+.stats small{font-size:12px;color:var(--muted)}
+.stats b{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.stats em{font-style:normal;font-size:12px;font-weight:500;color:var(--muted);margin-left:2px}
+h2{font-size:15px;font-weight:700;margin-top:28px;margin-bottom:10px}
+h2 small{font-size:12px;font-weight:500;color:var(--muted);margin-left:4px}
+.hours{display:flex;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 10px;overscroll-behavior-x:contain;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%)}
+.hours::-webkit-scrollbar{display:none}
+.h{flex:0 0 54px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 0;border-radius:14px}
+.h.now{background:var(--chip)}
+.h.nd{position:relative}
+.h.nd::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:1px;background:#e5e8eb}
+.hh{font-size:12px;color:var(--muted);font-weight:500}
+.h.now .hh{color:var(--text);font-weight:700}
+.hi{font-size:24px;line-height:1.15}
+.ht{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.hp{font-size:11px;color:var(--blue);min-height:15px;font-variant-numeric:tabular-nums}
+.strong{font-weight:700}
+.d{display:grid;grid-template-columns:1fr 64px 64px 84px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.d:first-child{border-top:0}
+.dl{display:flex;flex-direction:column;line-height:1.25}
+.dl b{font-size:15px;font-weight:600}
+.dl small{font-size:12px;color:var(--muted)}
+.half{display:flex;align-items:center;gap:3px;justify-content:center}
+.di{font-size:22px;line-height:1}
+.dim{color:var(--faint)}
+.dp{font-size:11px;color:var(--blue);width:26px;font-variant-numeric:tabular-nums}
+.mm{display:flex;justify-content:flex-end;gap:10px;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.src{font-size:11px;color:var(--faint);text-align:center;margin-top:24px}
+footer{text-align:center;font-size:12px;color:var(--muted);padding:0 16px calc(env(safe-area-inset-bottom) + 20px)}
+.dots{display:flex;justify-content:center;gap:6px;margin:2px 0 10px}
+.dots span{width:6px;height:6px;border-radius:50%;background:#d1d6db;transition:background .2s,width .2s}
+.dots span.on{background:var(--text);width:16px;border-radius:3px}
+@media (min-width:700px){.hours{margin:0;padding:0;-webkit-mask-image:none;mask-image:none}}
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <h1>${esc(data.location.name)}</h1>
-    <span class="meta">업데이트 ${esc(data.updatedAt)} · 기상청 ${esc(data.issuedAt)} 발표</span>
-  </header>
-
-  <section class="card" aria-label="현재 날씨">
-    <div class="now">
-      <span class="ic">${icon(c.sky, c.pty, Number(data.updatedAt.slice(11, 13)))}</span>
-      <span class="big">${c.temp}°</span>
-      <div>
-        <div class="desc">${esc(c.text)}</div>
-        ${td ? `<div class="range">최저 <span class="lo">${td.min}°</span> · 최고 <span class="hi-t">${td.max}°</span></div>` : ''}
-      </div>
-    </div>
-    <div class="stats">
-      <div><span>습도</span><b>${c.reh}%</b></div>
-      <div><span>바람</span><b>${c.wsd} m/s</b></div>
-      ${c.rn1 ? `<div><span>1시간 강수</span><b>${esc(c.rn1)}${/mm/.test(c.rn1) ? '' : ' mm'}</b></div>` : ''}
-      ${data.hourly[0] ? `<div><span>강수확률</span><b>${data.hourly[0].pop}%</b></div>` : ''}
-    </div>
-  </section>
-
-  <section class="card" aria-label="시간별 예보">
-    <h2>시간별 예보</h2>
-    <ul class="hours">${hourly}</ul>
-  </section>
-
-  <section class="card" aria-label="일별 예보">
-    <h2>일별 예보 <span class="muted" style="font-weight:400">· 오전 / 오후 / 최저·최고</span></h2>
-    <ul>${daily}</ul>
-  </section>
-
-  <footer>자료: 기상청 단기예보 (공공데이터포털) · 격자 ${data.location.nx}, ${data.location.ny} · <a href="data.json">data.json</a></footer>
+<div class="top"><nav class="tabs" role="tablist" aria-label="지역">${tabs}</nav></div>
+<main class="pager" id="pager">
+${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
 </main>
+<footer>
+  <div class="dots" aria-hidden="true">${data.locations.map((_, i) => `<span${i === 0 ? ' class="on"' : ''}></span>`).join('')}</div>
+  ${esc(data.updatedAt)} 업데이트 · 자료 기상청
+</footer>
+<script>
+(() => {
+  const pager = document.getElementById('pager');
+  const tabs = [...document.querySelectorAll('[role=tab]')];
+  const dots = [...document.querySelectorAll('.dots span')];
+  const ids = tabs.map((t) => t.getAttribute('aria-controls').slice(2));
+  let cur = -1;
+  const mark = (i) => {
+    if (i === cur) return;
+    cur = i;
+    tabs.forEach((t, j) => t.setAttribute('aria-selected', String(j === i)));
+    dots.forEach((d, j) => d.classList.toggle('on', j === i));
+    try { localStorage.setItem('tab', ids[i]); } catch (e) {}
+    history.replaceState(null, '', '#' + ids[i]);
+  };
+  const go = (i, smooth) => {
+    pager.scrollTo({ left: i * pager.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
+    mark(i);
+  };
+  tabs.forEach((t, i) => t.addEventListener('click', () => {
+    if (i === cur) window.scrollTo({ top: 0, behavior: 'smooth' });
+    go(i, true);
+  }));
+  let raf;
+  pager.addEventListener('scroll', () => {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => mark(Math.round(pager.scrollLeft / pager.clientWidth)));
+  }, { passive: true });
+  addEventListener('resize', () => go(cur, false));
+  let saved = location.hash.slice(1);
+  if (!ids.includes(saved)) { try { saved = localStorage.getItem('tab'); } catch (e) {} }
+  go(Math.max(0, ids.indexOf(saved)), false);
+})();
+</script>
 </body>
 </html>
 `;
@@ -345,26 +462,16 @@ footer a{color:inherit}
 
 // ---------- 실행 ----------
 const now = kstNow();
-const grid = toGrid(config.lat, config.lon);
-const vBase = vilageBase(now);
-console.log(`위치 ${config.name} → 격자 nx=${grid.nx}, ny=${grid.ny} / 단기예보 기준 ${vBase.base_date} ${vBase.base_time}`);
+const locations = [];
+for (const [i, loc] of config.locations.entries()) locations.push(await fetchLocation(loc, now, i));
 
-let fcst, ncst;
-if (MOCK) {
-  ({ fcst, ncst } = mockData(vBase, grid));
-} else {
-  fcst = await callApi('getVilageFcst', { ...vBase, ...grid });
-  try {
-    ncst = await callApi('getUltraSrtNcst', { ...ncstBase(now), ...grid });
-  } catch (e) {
-    console.warn(`초단기실황 실패, 예보값으로 대체: ${e.message}`);
-    ncst = null;
-  }
-}
-
-const data = build(fcst, ncst, now, vBase, grid);
+const data = {
+  title: config.title,
+  updatedAt: `${+(now.getUTCMonth() + 1)}월 ${now.getUTCDate()}일 ${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`,
+  locations,
+};
 await mkdir(OUT, { recursive: true });
 await writeFile(new URL('data.json', OUT), JSON.stringify(data, null, 2) + '\n');
-await writeFile(new URL('index.html', OUT), render(data, ymd(now)));
+await writeFile(new URL('index.html', OUT), render(data, ymd(now), now.getUTCHours()));
 await writeFile(new URL('.nojekyll', OUT), '');
-console.log(`완료: 현재 ${data.current.temp}° ${data.current.text}, 시간별 ${data.hourly.length}개, 일별 ${data.daily.length}일`);
+for (const l of locations) console.log(`완료 ${l.name}: ${l.current.temp}° ${l.current.text}, 시간별 ${l.hourly.length}개, 날짜별 ${l.daily.length}일`);

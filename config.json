@@ -1,5 +1,7 @@
 {
-  "name": "화천군 화천읍",
-  "lat": 38.1062,
-  "lon": 127.7082
+  "title": "날씨",
+  "locations": [
+    { "id": "chuncheon", "name": "춘천", "detail": "춘천시청 기준", "lat": 37.8813, "lon": 127.7298 },
+    { "id": "seoul", "name": "서울", "detail": "서울시청 기준", "lat": 37.5665, "lon": 126.978 }
+  ]
 }
