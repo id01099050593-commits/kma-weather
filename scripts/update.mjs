@@ -182,7 +182,7 @@ function mergeFcst(latest, earlier) {
   return [...latest, ...earlier.filter((it) => !seen.has(key(it)))];
 }
 
-function build(loc, grid, fcstItems, ncstItems, yestItems, now, base) {
+function build(loc, grid, fcstItems, ncstItems, yestTemp, now, base) {
   const slots = new Map(); // "YYYYMMDDHHMM" -> {cat: value}
   const tmn = {}, tmx = {};
   for (const it of fcstItems) {
@@ -240,7 +240,6 @@ function build(loc, grid, fcstItems, ncstItems, yestItems, now, base) {
     });
 
   const ncst = Object.fromEntries((ncstItems || []).map((it) => [it.category, it.obsrValue]));
-  const yest = Object.fromEntries((yestItems || []).map((it) => [it.category, it.obsrValue]));
   const cur = upcoming[0] || all[all.length - 1];
   const pty = ncst.PTY ?? cur.PTY;
   const temp = Number(ncst.T1H ?? cur.TMP);
@@ -265,7 +264,7 @@ function build(loc, grid, fcstItems, ncstItems, yestItems, now, base) {
       vec: Number.isFinite(vec) ? vec : null,
       wind: windName(vec),
       feels: round1(feelsLike(temp, reh, wsd, now.getUTCMonth() + 1)),
-      vsYesterday: yest.T1H !== undefined ? round1(temp - Number(yest.T1H)) : null,
+      vsYesterday: Number.isFinite(yestTemp) ? round1(temp - yestTemp) : null,
       pop: Number(cur.POP ?? 0),
       rn1: ncst.RN1 && ncst.RN1 !== '0' && ncst.RN1 !== '강수없음' ? ncst.RN1 : null,
       observed: Boolean(ncstItems),
@@ -276,7 +275,11 @@ function build(loc, grid, fcstItems, ncstItems, yestItems, now, base) {
   };
 }
 
-async function fetchLocation(loc, now, index) {
+// 관측 기온 기록 키 ("YYYYMMDDHH"). 실황 API는 최근 24시간 이내만 주므로
+// 매 실행마다 지난 23시간을 기록해 두고, 다음 날 같은 시각과 비교한다.
+const histKey = (b) => b.base_date + b.base_time.slice(0, 2);
+
+async function fetchLocation(loc, now, index, hist) {
   const grid = toGrid(loc.lat, loc.lon);
   const vBase = vilageBase(now);
   // 오늘 02시 발표: 오늘 최저기온(TMN)과 오늘 지난 시간대를 채우는 용도
@@ -284,12 +287,12 @@ async function fetchLocation(loc, now, index) {
   const needEarly = vBase.base_date === earlyBase.base_date && vBase.base_time !== '0200';
   console.log(`${loc.name} → 격자 nx=${grid.nx}, ny=${grid.ny} / 단기예보 ${vBase.base_date} ${vBase.base_time}`);
 
-  let latest, early = [], ncst = null, yest = null;
+  let latest, early = [], ncst = null;
   if (MOCK) {
     latest = mockFcst(vBase, grid, index * 2);
     if (needEarly) early = mockFcst(earlyBase, grid, index * 2);
     ncst = mockNcst(index * 2);
-    yest = mockNcst(index * 2, 1.4);
+    hist[histKey(ncstBase(now, 24))] ??= 15.3 + index * 2 - 1.4;
   } else {
     latest = await callApi('getVilageFcst', { ...vBase, ...grid });
     const optional = async (label, fn) => {
@@ -302,9 +305,25 @@ async function fetchLocation(loc, now, index) {
     };
     if (needEarly) early = (await optional('02시 발표 보조자료', () => callApi('getVilageFcst', { ...earlyBase, ...grid }))) ?? [];
     ncst = await optional('초단기실황', () => callApi('getUltraSrtNcst', { ...ncstBase(now), ...grid }));
-    yest = await optional('어제 실황', () => callApi('getUltraSrtNcst', { ...ncstBase(now, 24), ...grid }));
+    const t1h = (items) => {
+      const v = Number(items?.find((it) => it.category === 'T1H')?.obsrValue);
+      return Number.isFinite(v) ? v : null;
+    };
+    if (t1h(ncst) !== null) hist[histKey(ncstBase(now))] = t1h(ncst);
+    let filled = 0;
+    for (let h = 1; h <= 23; h++) {
+      const b = ncstBase(now, h);
+      if (hist[histKey(b)] !== undefined) continue;
+      const v = t1h(await optional(`${h}시간 전 실황`, () => callApi('getUltraSrtNcst', { ...b, ...grid })));
+      if (v !== null) {
+        hist[histKey(b)] = v;
+        filled++;
+      }
+    }
+    if (filled) console.log(`${loc.name} 관측 기록 ${filled}시간 추가`);
   }
-  return build(loc, grid, mergeFcst(latest, early), ncst, yest, now, vBase);
+  const yestTemp = hist[histKey(ncstBase(now, 24))];
+  return build(loc, grid, mergeFcst(latest, early), ncst, yestTemp ?? null, now, vBase);
 }
 
 // ---------- 아이콘 (SVG 심볼, 64x64) ----------
@@ -656,7 +675,17 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
 // ---------- 실행 ----------
 const now = kstNow();
 const locations = [];
-for (const [i, loc] of config.locations.entries()) locations.push(await fetchLocation(loc, now, i));
+const HISTORY = new URL('history.json', OUT);
+let history = {};
+try {
+  history = JSON.parse(await readFile(HISTORY, 'utf8'));
+} catch {}
+const oldest = histKey(ncstBase(now, 72)); // 3일 지난 기록은 삭제
+for (const [i, loc] of config.locations.entries()) {
+  const hist = Object.fromEntries(Object.entries(history[loc.id] ?? {}).filter(([k]) => k >= oldest));
+  locations.push(await fetchLocation(loc, now, i, hist));
+  history[loc.id] = Object.fromEntries(Object.entries(hist).sort());
+}
 
 const data = {
   title: config.title,
@@ -667,6 +696,7 @@ await mkdir(OUT, { recursive: true });
 await writeFile(new URL('data.json', OUT), JSON.stringify(data, null, 2) + '\n');
 await writeFile(new URL('index.html', OUT), render(data, ymd(now), now.getUTCHours()));
 await writeFile(new URL('.nojekyll', OUT), '');
+if (!MOCK) await writeFile(HISTORY, JSON.stringify(history, null, 1) + '\n');
 for (const l of locations) {
   const c = l.current;
   console.log(`완료 ${l.name}: ${c.temp}° ${c.text}, 체감 ${c.feels}°, 어제대비 ${c.vsYesterday ?? '-'}, 일출 ${c.sunrise} 일몰 ${c.sunset}, 시간별 ${l.hourly.length}개, 날짜별 ${l.daily.length}일`);
