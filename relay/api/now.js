@@ -31,6 +31,8 @@ async function call(op, params) {
   return json.response.body.items.item;
 }
 
+const num = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
+
 async function live(nx, ny) {
   // 초단기실황: 정시 관측, 약 40분 뒤 제공 → 최신이 아직 없으면 한 시간 전
   let ncst, base;
@@ -45,17 +47,23 @@ async function live(nx, ny) {
   }
   const obs = Object.fromEntries(ncst.map((it) => [it.category, it.obsrValue]));
 
-  // 하늘상태(SKY)는 실황에 없어서 초단기예보(매시 30분 발표, 약 45분 뒤 제공)의 가장 가까운 시각 값 사용
-  let sky = null;
+  // 초단기예보(매시 30분 발표, 약 45분 뒤 제공): 앞으로 6시간 시간별 기온·하늘상태 등
+  // 실황에 없는 하늘상태(SKY)와, 실황이 1시간 넘게 지났을 때 현재 시각 기온을 채우는 데 사용
+  const fcst = [];
   try {
     const f = await call('getUltraSrtFcst', { ...baseOf(kst(45 * 60e3), '30'), nx, ny });
-    const first = f
-      .filter((it) => it.category === 'SKY')
-      .sort((a, b) => (a.fcstDate + a.fcstTime).localeCompare(b.fcstDate + b.fcstTime))[0];
-    sky = first?.fcstValue ?? null;
+    const slots = new Map();
+    for (const it of f) {
+      const k = it.fcstDate + it.fcstTime;
+      if (!slots.has(k)) slots.set(k, { date: it.fcstDate, time: it.fcstTime });
+      slots.get(k)[it.category] = it.fcstValue;
+    }
+    for (const [, v] of [...slots].sort((a, b) => a[0].localeCompare(b[0]))) {
+      fcst.push({ date: v.date, time: v.time, t1h: num(v.T1H), reh: num(v.REH), wsd: num(v.WSD), vec: num(v.VEC), sky: v.SKY ?? null, pty: v.PTY ?? null });
+    }
   } catch {}
+  const sky = fcst[0]?.sky ?? null;
 
-  const num = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
   return {
     nx: Number(nx),
     ny: Number(ny),
@@ -68,6 +76,7 @@ async function live(nx, ny) {
     pty: obs.PTY ?? null,
     rn1: obs.RN1 ?? null,
     sky,
+    fcst,
   };
 }
 

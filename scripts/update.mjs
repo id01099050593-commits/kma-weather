@@ -733,19 +733,36 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
         const d = await r.json();
         if (d.t1h === null || d.t1h === undefined) return;
         const q = (k) => p.querySelector('[data-k="' + k + '"]');
-        const sky = d.sky || p.dataset.sky, pty = d.pty ?? '0', hh = +d.baseTime.slice(0, 2);
         const k = new Date(Date.now() + 9 * 3600e3);
+        // 실황은 정시 관측이 약 40분 뒤 공개됨 → 관측 후 50분이 넘었으면
+        // 현재 시각에 가장 가까운 정시의 초단기예보 값을 사용 (해 질 녘처럼 기온이 빨리 변할 때 차이를 줄임)
+        let cd = d.baseDate, hh = +d.baseTime.slice(0, 2), kind = '관측';
+        const obsAt = Date.UTC(+cd.slice(0, 4), +cd.slice(4, 6) - 1, +cd.slice(6, 8), hh);
+        if (k.getTime() - obsAt > 50 * 60e3 && d.fcst) {
+          const n = new Date(k.getTime() + 30 * 60e3);
+          const key = n.getUTCFullYear() + p2(n.getUTCMonth() + 1) + p2(n.getUTCDate()) + p2(n.getUTCHours()) + '00';
+          const f = d.fcst.find((x) => x.date + x.time === key);
+          if (f && f.t1h !== null) {
+            d.t1h = f.t1h;
+            if (f.reh !== null) d.reh = f.reh;
+            if (f.wsd !== null) { d.wsd = f.wsd; d.vec = f.vec; }
+            if (f.pty !== null) d.pty = f.pty;
+            if (f.sky !== null) d.sky = f.sky;
+            cd = f.date; hh = +f.time.slice(0, 2); kind = '예보';
+          }
+        }
+        const sky = d.sky || p.dataset.sky, pty = d.pty ?? '0';
         SUN = { rise: toMin(p.dataset.rise), set: toMin(p.dataset.set) };
         q('icon').innerHTML = iconInner(sky, pty, k.getUTCHours() + k.getUTCMinutes() / 60 + 1e-6);
         q('temp').textContent = d.t1h;
         q('text').textContent = describe(sky, pty);
-        q('lab').textContent = '현재 온도 · ' + hh + '시 관측';
+        q('lab').textContent = '현재 온도 · ' + hh + '시 ' + kind;
         if (d.reh !== null) q('reh').textContent = d.reh + '%';
         if (d.wsd !== null) { q('wsd').textContent = d.wsd + 'm/s'; q('wind').textContent = windName(d.vec); }
         q('feels').textContent = Math.round(feelsLike(d.t1h, d.reh ?? 50, d.wsd ?? 0, +d.baseDate.slice(4, 6)) * 10) / 10 + '°';
         if (q('now')) q('now').textContent = Math.round(d.t1h) + '°';
         // 어제 같은 시각 관측값(history.json)과 비교
-        const y = new Date(Date.UTC(+d.baseDate.slice(0, 4), +d.baseDate.slice(4, 6) - 1, +d.baseDate.slice(6, 8), hh) - 86400e3);
+        const y = new Date(Date.UTC(+cd.slice(0, 4), +cd.slice(4, 6) - 1, +cd.slice(6, 8), hh) - 86400e3);
         const prev = HIST?.[p.id.slice(2)]?.[y.getUTCFullYear() + p2(y.getUTCMonth() + 1) + p2(y.getUTCDate()) + p2(y.getUTCHours())];
         if (prev !== undefined) {
           const diff = Math.round((d.t1h - prev) * 10) / 10;
