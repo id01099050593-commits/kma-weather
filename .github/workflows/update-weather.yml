@@ -3,9 +3,8 @@ name: 날씨 업데이트
 on:
   schedule:
     # GitHub cron은 UTC 기준 (KST = UTC+9)
-    - cron: '0 22 * * *'    # 07:00 KST (05시 발표분)
-    - cron: '0 3 * * *'     # 12:00 KST (11시 발표분)
-    - cron: '15 11 * * *'   # 20:15 KST (20시 발표분, 20:10쯤 제공)
+    # 단기예보 발표(02,05,08,11,14,17,20,23시 KST) 15분 뒤 실행 — 하루 8회
+    - cron: '15 17,20,23,2,5,8,11,14 * * *'
   workflow_dispatch: {}   # Actions 탭에서 수동 실행 버튼
 
 permissions:

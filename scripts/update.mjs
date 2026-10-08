@@ -280,7 +280,8 @@ function build(loc, grid, fcstItems, ncstItems, yestTemp, now, base) {
 const histKey = (b) => b.base_date + b.base_time.slice(0, 2);
 
 async function fetchLocation(loc, now, index, hist) {
-  const grid = toGrid(loc.lat, loc.lon);
+  // config.json에 nx, ny를 적으면 그 격자를 그대로 사용 (기상청 격자 엑셀 값으로 고정할 때)
+  const grid = loc.nx && loc.ny ? { nx: loc.nx, ny: loc.ny } : toGrid(loc.lat, loc.lon);
   const vBase = vilageBase(now);
   // 오늘 02시 발표: 오늘 최저기온(TMN)과 오늘 지난 시간대를 채우는 용도
   const earlyBase = { base_date: ymd(now), base_time: '0200' };
@@ -366,6 +367,7 @@ function dayInfo(date, today) {
   const dow = d.getUTCDay();
   return {
     rel: ['오늘', '내일', '모레'][diff] ?? `${DOW[dow]}요일`,
+    dow: DOW[dow],
     md: `${+date.slice(4, 6)}.${+date.slice(6, 8)}.`,
     cls: dow === 0 ? 'sun' : dow === 6 ? 'sat' : '',
   };
@@ -456,7 +458,7 @@ function renderPanel(loc, today, nowHour) {
     .map((d, i) => {
       const l = dayInfo(d.date, today);
       return `<li class="d${i === 0 ? ' today' : ''}">
-          <span class="dd"><b class="${l.cls}">${l.rel}</b><small>${l.md}</small></span>
+          <span class="dd"><b class="${l.cls}">${l.dow}</b><small>${l.md}</small></span>
           ${half(d.am)}${half(d.pm)}
           <span class="mm"><span class="lo">${d.min}°</span><span class="sl">/</span><span class="hi">${d.max}°</span></span>
         </li>`;
@@ -528,11 +530,13 @@ function render(data, today, nowHour) {
 <meta name="apple-mobile-web-app-title" content="${esc(data.title)}">
 <meta name="format-detection" content="telephone=no">
 <title>${esc(data.title)}</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
 :root{--bg:#f2f4f7;--card:#fff;--text:#1e1e23;--sub:#505660;--muted:#8a919c;--faint:#b5bbc4;--line:#eef0f3;--green:#03c75a;--blue:#3d7bf7;--red:#f2484a;--chip:#f5f7f9}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;letter-spacing:-.02em}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 "Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;letter-spacing:-.01em;-webkit-font-smoothing:antialiased}
 ul,dl,dd{list-style:none;margin:0;padding:0}
 p,h2{margin:0}
 button{font:inherit;cursor:pointer}
@@ -580,7 +584,7 @@ h2{font-size:17px;font-weight:800}
 .scroll::-webkit-scrollbar{display:none}
 .chart{display:block}
 .chart[hidden]{display:none}
-.chart text{text-anchor:middle;font-family:inherit;letter-spacing:-.02em}
+.chart text{text-anchor:middle;font-family:inherit;letter-spacing:-.01em}
 .chart .t{font-size:12px;fill:var(--muted)}
 .chart .tb{font-size:12px;font-weight:700;fill:var(--text)}
 .chart .tv{font-size:14px;font-weight:700;fill:var(--text)}

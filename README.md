@@ -2,7 +2,7 @@
 
 > 만든 과정과 다른 컴퓨터에서 이어서 작업하는 방법은 [작업기록.md](작업기록.md) 참고
 
-GitHub Actions가 하루 3번 기상청 단기예보 API를 호출해 `docs/index.html`을 다시 만들고,
+GitHub Actions가 하루 8번 기상청 단기예보 API를 호출해 `docs/index.html`을 다시 만들고,
 GitHub Pages가 그 페이지를 고정 주소로 보여줍니다. PC가 꺼져 있어도 동작합니다.
 아이폰 화면에 맞춘 화이트 UI이며, 상단 탭을 누르거나 좌우로 밀어 지역을 바꿉니다.
 
@@ -12,7 +12,7 @@ GitHub Pages가 그 페이지를 고정 주소로 보여줍니다. PC가 꺼져 
 |---|---|
 | `config.json` | 지역 목록 (이름, 위도/경도 → 격자 nx, ny 자동 계산) |
 | `scripts/update.mjs` | API 호출 → `docs/index.html`, `docs/data.json` 생성 |
-| `.github/workflows/update-weather.yml` | 실행 시각: 07:00 · 12:00 · 20:15 (KST) |
+| `.github/workflows/update-weather.yml` | 실행 시각: 기상청 발표 15분 뒤, 하루 8회 (02:15 · 05:15 · … · 23:15 KST) |
 
 ## 설정 순서
 
