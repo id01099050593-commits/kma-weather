@@ -1,7 +1,7 @@
 {
   "title": "날씨",
   "liveApi": "https://kma-weather-relay.vercel.app/api",
-  "updatedAt": "10월 9일 17:33",
+  "updatedAt": "10월 9일 17:34",
   "locations": [
     {
       "id": "chuncheon",
