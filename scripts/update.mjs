@@ -548,8 +548,10 @@ function hourlyCharts(loc, today) {
   return weather + rain + wind + hum;
 }
 
-const airChip = (label, key, grade, value) =>
-  `<li data-k="${key}" title="${label} ${value ?? '-'}"><span>${label}</span><b class="lv${grade ?? 'x'}">${grade != null ? AIR_LV[grade] : '-'}</b></li>`;
+const gradeChip = (label, key, grade, value, unit, names) =>
+  `<li data-k="${key}" class="g${grade ?? 'x'}"><span>${label}</span><b>${value ?? '-'}<small>${value != null ? unit : ''}</small></b><em>${grade != null ? names[grade] : '정보 없음'}</em></li>`;
+const popGrade = (p) => (p >= 70 ? 3 : p >= 50 ? 2 : p >= 30 ? 1 : 0);
+const POP_LV = ['낮음', '가능성 있음', '우산 챙기기', '비 소식'];
 
 function renderPanel(loc, today, nowHour) {
   const c = loc.current;
@@ -580,6 +582,9 @@ function renderPanel(loc, today, nowHour) {
   return `<section class="panel" id="p-${esc(loc.id)}" aria-label="${esc(loc.name)} 날씨" data-nx="${loc.nx}" data-ny="${loc.ny}" data-lat="${loc.lat}" data-lon="${loc.lon}" data-station="${esc(loc.airStation ?? '')}" data-rise="${c.sunrise}" data-set="${c.sunset}" data-sky="${esc(c.sky ?? '')}">
     <div class="card now">
       <p class="loc">${esc(loc.detail)}</p>
+      <span class="skytag"><b data-k="skyTitle"></b><span data-k="skyCap"></span></span>
+      <div class="herowrap">
+      <div class="arcwrap" data-k="skycard" hidden><svg class="arc" viewBox="0 0 320 136" data-k="arc" aria-hidden="true"></svg></div>
       <div class="hero">
         ${iconSvg(c.sky, c.pty, nowHour, 'big', c.text).replace('<svg ', '<svg data-k="icon" ')}
         <div class="tempbox">
@@ -587,6 +592,8 @@ function renderPanel(loc, today, nowHour) {
           <p class="temp"><b data-k="temp">${c.temp}</b><span>°</span></p>
         </div>
       </div>
+      </div>
+      <div class="arcfoot"><span data-k="aL"></span><span class="mid" data-k="aM"></span><span data-k="aR"></span></div>
       <p class="sum"><b data-k="text">${esc(c.text)}</b><span data-k="vs">${vs}</span></p>
       <dl class="info">
         <div><dt>체감</dt><dd data-k="feels">${c.feels}°</dd></div>
@@ -594,18 +601,12 @@ function renderPanel(loc, today, nowHour) {
         <div><dt data-k="wind">${esc(c.wind)}</dt><dd data-k="wsd">${c.wsd}m/s</dd></div>
       </dl>
       <ul class="chips">
-        ${airChip('미세먼지', 'pm10', c.air?.pm10Grade, c.air?.pm10)}
-        ${airChip('초미세먼지', 'pm25', c.air?.pm25Grade, c.air?.pm25)}
-        <li data-k="uv" title="자외선 지수 ${c.uv?.value ?? '-'}"><span>자외선</span><b class="lv${c.uv?.grade ?? 'x'}">${c.uv?.grade != null ? UV_LV[c.uv.grade] : '-'}</b></li>
-        <li><span>강수확률</span><b class="${c.pop >= 60 ? 'blue' : ''}">${c.pop}%</b></li>
+        ${gradeChip('미세먼지', 'pm10', c.air?.pm10Grade, c.air?.pm10, '㎍/㎥', AIR_LV)}
+        ${gradeChip('초미세먼지', 'pm25', c.air?.pm25Grade, c.air?.pm25, '㎍/㎥', AIR_LV)}
+        ${gradeChip('자외선', 'uv', c.uv?.grade, c.uv?.value, '', UV_LV)}
+        ${gradeChip('강수확률', 'pop', popGrade(c.pop), c.pop, '%', POP_LV)}
       </ul>
       <p class="airsrc" data-k="airsrc">${c.air ? `미세먼지 ${esc(c.air.station)} 측정소${c.air.time ? ' · ' + esc(c.air.time.slice(11)) : ''}` : ''}${c.uv?.todayMax != null ? `${c.air ? ' · ' : ''}오늘 자외선 최고 ${c.uv.todayMax}(${UV_LV[c.uv.todayMaxGrade]})` : ''}${td ? ` · 최저 ${td.min}° 최고 ${td.max}°` : ''}</p>
-    </div>
-
-    <div class="card skycard" data-k="skycard" hidden>
-      <div class="head"><h2 data-k="skyTitle">해와 달</h2><span class="cap" data-k="skyCap"></span></div>
-      <svg class="arc" viewBox="0 0 320 136" data-k="arc" aria-hidden="true"></svg>
-      <div class="arcfoot"><span data-k="aL"></span><span class="mid" data-k="aM"></span><span data-k="aR"></span></div>
     </div>
 
     <div class="card">
@@ -693,9 +694,22 @@ button{font:inherit;cursor:pointer}
 .info dt{color:var(--muted)}
 .info dd{font-weight:600;font-variant-numeric:tabular-nums}
 .chips{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:18px}
-.chips li{background:var(--chip);border-radius:14px;padding:10px 2px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.chips li{background:var(--chip);border-radius:14px;padding:9px 2px 8px;display:flex;flex-direction:column;align-items:center;gap:0}
 .chips span{font-size:12px;color:var(--muted)}
-.chips b{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.chips b{font-size:19px;font-weight:800;line-height:1.3;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.02em}
+.chips b small{font-size:10px;font-weight:600;margin-left:1px;opacity:.75;letter-spacing:0}
+.chips em{font-style:normal;font-size:11px;font-weight:700}
+.chips .g0{background:rgba(61,123,247,.10)}.chips .g0 b,.chips .g0 em{color:#2f6fe4}
+.chips .g1{background:rgba(18,161,80,.10)}.chips .g1 b,.chips .g1 em{color:#0f9a4c}
+.chips .g2{background:rgba(240,140,0,.13)}.chips .g2 b,.chips .g2 em{color:#e07800}
+.chips .g3{background:rgba(242,72,74,.12)}.chips .g3 b,.chips .g3 em{color:#e5383b}
+.chips .g4{background:rgba(156,54,181,.12)}.chips .g4 b,.chips .g4 em{color:#9c36b5}
+.chips .gx b,.chips .gx em{color:var(--faint)}
+html[data-mode="dark"] .chips .g0 b,html[data-mode="dark"] .chips .g0 em{color:#8ab4ff}
+html[data-mode="dark"] .chips .g1 b,html[data-mode="dark"] .chips .g1 em{color:#5fd896}
+html[data-mode="dark"] .chips .g2 b,html[data-mode="dark"] .chips .g2 em{color:#ffb454}
+html[data-mode="dark"] .chips .g3 b,html[data-mode="dark"] .chips .g3 em{color:#ff8a8a}
+html[data-mode="dark"] .chips .g4 b,html[data-mode="dark"] .chips .g4 em{color:#d68cf0}
 .blue{color:var(--blue)}
 .lv0{color:var(--blue)}.lv1{color:#12a150}.lv2{color:#f08c00}.lv3{color:var(--red)}.lv4{color:#9c36b5}.lvx{color:var(--faint)}
 html[data-mode="dark"] .lv1{color:#4cd18a}html[data-mode="dark"] .lv2{color:#ffb347}
@@ -750,13 +764,22 @@ h2{font-size:17px;font-weight:800}
 .ptr svg{width:20px;height:20px}
 .ptr.spin svg{animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.skycard[hidden]{display:none}
-.arc{display:block;width:100%;height:auto;margin-top:-4px}
+.now{position:relative}
+.skytag{position:absolute;top:16px;left:18px;font-size:11px;color:var(--muted)}
+.skytag b{font-weight:700;color:var(--sub);margin-right:4px}
+.herowrap{position:relative;margin:2px -8px 0}
+.arcwrap{position:absolute;inset:0;z-index:0;pointer-events:none}
+.arcwrap[hidden]{display:none}
+.arc{display:block;width:100%;height:100%}
+.arc .below{display:none}
+.arc .hz{opacity:.6}
+.herowrap .arc .done{opacity:.75}
+.herowrap .hero{position:relative;z-index:1;min-height:150px;margin-top:0;padding-top:8px}
 .arc .hz{stroke:var(--faint);stroke-width:1}
 .arc .path{fill:none;stroke:var(--faint);stroke-width:2;stroke-dasharray:3 5;stroke-linecap:round}
 .arc .done{fill:none;stroke-width:3;stroke-linecap:round}
 .arc .below{fill:var(--chip)}
-.arcfoot{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--muted);margin-top:2px}
+.arcfoot{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted);margin-top:-4px;padding:0 2px}
 .arcfoot b{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
 .arcfoot .mid{color:var(--sub);font-weight:600;text-align:center}
 footer{text-align:center;font-size:12px;color:var(--muted);padding:0 16px calc(env(safe-area-inset-bottom) + 20px)}
@@ -902,9 +925,9 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
           for (const [key, v, cuts, label] of [['pm10', d.air.pm10, [30, 80, 150], '미세먼지'], ['pm25', d.air.pm25, [15, 35, 75], '초미세먼지']]) {
             const li = q(key), gr = g(v, cuts);
             if (!li || gr === null) continue;
-            li.title = label + ' ' + v;
-            li.querySelector('b').className = 'lv' + gr;
-            li.querySelector('b').textContent = LV[gr];
+            li.className = 'g' + gr;
+            li.querySelector('b').innerHTML = v + '<small>㎍/㎥</small>';
+            li.querySelector('em').textContent = LV[gr];
           }
         }
         // 어제 같은 시각 관측값(history.json)과 비교
