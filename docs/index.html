@@ -612,7 +612,7 @@ footer{text-align:center;font-size:12px;color:var(--muted);padding:0 16px calc(e
   </section>
 </main>
 <div class="ptr" id="ptr" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#03c75a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></div>
-<footer>10월 9일 17:25 업데이트 · 자료 기상청</footer>
+<footer>10월 9일 17:33 업데이트 · 자료 기상청</footer>
 <script>
 (() => {
   const pager = document.getElementById('pager');
@@ -896,7 +896,7 @@ footer{text-align:center;font-size:12px;color:var(--muted);padding:0 16px calc(e
   pager.addEventListener('scroll', () => { cancelAnimationFrame(skyRaf); skyRaf = requestAnimationFrame(updateSky); }, { passive: true });
 
   // 캐시된 옛 화면이면 최신 버전으로 자동 새로고침 (앱을 다시 열 때도 확인)
-  const BUILT = "10월 9일 17:25";
+  const BUILT = "10월 9일 17:33";
   const check = async () => {
     try {
       const d = await (await fetch('data.json?t=' + Date.now(), { cache: 'no-store' })).json();
