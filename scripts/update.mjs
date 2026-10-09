@@ -583,18 +583,18 @@ function renderPanel(loc, today, nowHour) {
     <div class="card now">
       <p class="loc">${esc(loc.detail)}</p>
       <span class="skytag"><b data-k="skyTitle"></b><span data-k="skyCap"></span></span>
+      <span class="lab" data-k="lab">현재 온도</span>
       <div class="herowrap">
       <div class="arcwrap" data-k="skycard" hidden><svg class="arc" viewBox="0 0 320 136" data-k="arc" aria-hidden="true"></svg></div>
       <div class="hero">
         ${iconSvg(c.sky, c.pty, nowHour, 'big', c.text).replace('<svg ', '<svg data-k="icon" ')}
         <div class="tempbox">
-          <span class="lab" data-k="lab">현재 온도</span>
           <p class="temp"><b data-k="temp">${c.temp}</b><span>°</span></p>
-          ${td ? `<p class="hl"><span>최저</span><b class="lo">${td.min}°</b><i></i><span>최고</span><b class="hi">${td.max}°</b></p>` : ''}
         </div>
       </div>
       <div class="arcwrap arctopwrap"><svg class="arc" viewBox="0 0 320 136" data-k="arctop" aria-hidden="true"></svg></div>
       </div>
+      ${td ? `<p class="hl"><span>최저</span><b class="lo">${td.min}°</b><i></i><span>최고</span><b class="hi">${td.max}°</b></p>` : ''}
       <div class="arcfoot"><span data-k="aL"></span><span class="mid" data-k="aM"></span><span data-k="aR"></span></div>
       <p class="sum"><b data-k="text">${esc(c.text)}</b><span data-k="vs">${vs}</span></p>
       <dl class="info">
@@ -682,10 +682,10 @@ button{font:inherit;cursor:pointer}
 .hero{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px}
 .big{width:96px;height:96px;flex:none}
 .tempbox{display:flex;flex-direction:column}
-.lab{font-size:13px;color:var(--muted);margin-bottom:-4px}
+.lab{position:absolute;top:16px;right:18px;font-size:10.5px;color:var(--muted);z-index:3}
 .temp{font-size:58px;font-weight:700;letter-spacing:-.05em;line-height:1.1;font-variant-numeric:tabular-nums}
 .temp b{font-weight:inherit}
-.hl{display:flex;align-items:baseline;gap:4px;font-size:14px;margin-top:2px;color:var(--muted)}
+.hl{position:relative;z-index:3;display:flex;justify-content:center;align-items:baseline;gap:4px;font-size:14px;margin:2px 0 6px;color:var(--muted)}
 .hl b{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
 .hl i{width:1px;height:11px;background:var(--faint);margin:0 5px;align-self:center}
 .temp span{font-weight:400;color:var(--sub);margin-left:2px}
@@ -694,10 +694,10 @@ button{font:inherit;cursor:pointer}
 .vs{color:var(--sub);font-size:15px}
 .vs b{font-weight:700}
 .up{color:var(--red)}.down{color:var(--blue)}
-.info{display:flex;justify-content:center;gap:16px;margin-top:8px;font-size:14px}
-.info div{display:flex;gap:5px}
-.info dt{color:var(--muted)}
-.info dd{font-weight:600;font-variant-numeric:tabular-nums}
+.info{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}
+.info div{display:flex;flex-direction:column;align-items:center;gap:1px;background:var(--chip);border:1px solid var(--line);border-radius:14px;padding:8px 4px}
+.info dt{font-size:12px;color:var(--muted)}
+.info dd{font-size:17px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .chips{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:18px}
 .chips li{background:var(--chip);border-radius:14px;padding:9px 2px 8px;display:flex;flex-direction:column;align-items:center;gap:0}
 .chips span{font-size:12px;color:var(--muted)}
