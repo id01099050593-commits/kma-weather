@@ -29,7 +29,8 @@ async function call(op, params, base = API, timeout = 8000) {
   const h = json?.response?.header;
   if (!h) throw new Error(`${op} (HTTP ${res.status}): ${text.slice(0, 200)}`);
   if (h.resultCode !== '00') throw new Error(`${op} ${h.resultCode}: ${h.resultMsg}`);
-  return json.response.body.items.item;
+  const items = json.response.body?.items; // 에어코리아는 items가 바로 배열
+  return Array.isArray(items) ? items : items?.item;
 }
 
 const num = (v) => (v === undefined || v === null || v === '' || v === '-' || isNaN(Number(v)) ? null : Number(v));
