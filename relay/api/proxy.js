@@ -6,12 +6,14 @@
 
 const SERVICES = {
   vilage: { base: 'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0', ops: ['getVilageFcst', 'getUltraSrtNcst', 'getUltraSrtFcst'] },
-  uv: { base: 'https://apis.data.go.kr/1360000/LivingWthrIdxServiceV4', ops: ['getUVIdxV4'] },
-  air: { base: 'https://apis.data.go.kr/B552584/ArpltnInforInqireSvc', ops: ['getMsrstnAcctoRltmMesureDnsty'] },
-  station: { base: 'https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc', ops: ['getTMStdrCrdnt', 'getNearbyMsrstnList'] },
+  uv: { base: 'https://apis.data.go.kr/1360000/LivingWthrIdxServiceV5', ops: ['getUVIdxV5', 'getUVIdx'] },
+  air: { base: 'http://apis.data.go.kr/B552584/ArpltnInforInqireSvc', ops: ['getMsrstnAcctoRltmMesureDnsty'] },
+  station: { base: 'http://apis.data.go.kr/B552584/MsrstnInfoInqireSvc', ops: ['getTMStdrCrdnt', 'getNearbyMsrstnList'] },
 };
 const ALLOWED_GRIDS = new Set(['73,133', '61,127']); // config.json 지역 격자와 맞출 것
 const PASS = ['pageNo', 'numOfRows', 'dataType', 'returnType', 'ver', 'base_date', 'base_time', 'nx', 'ny', 'areaNo', 'time', 'stationName', 'dataTerm', 'umdName', 'tmX', 'tmY'];
+
+export const maxDuration = 30;
 
 export async function GET(request) {
   const url = new URL(request.url);
@@ -26,7 +28,7 @@ export async function GET(request) {
   const qs = new URLSearchParams({ serviceKey: raw.includes('%') ? decodeURIComponent(raw) : raw });
   for (const k of PASS) if (url.searchParams.has(k)) qs.set(k, url.searchParams.get(k));
   try {
-    const res = await fetch(`${svc.base}/${op}?${qs}`, { signal: AbortSignal.timeout(9000) });
+    const res = await fetch(`${svc.base}/${op}?${qs}`, { signal: AbortSignal.timeout(25000) });
     const text = await res.text();
     return new Response(text, {
       status: res.status,
