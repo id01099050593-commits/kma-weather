@@ -4,6 +4,7 @@
 // 응답 예: { nx, ny, baseDate, baseTime, t1h, reh, wsd, vec, pty, rn1, sky }
 
 const API = 'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0';
+const AIR_API = 'http://apis.data.go.kr/B552584/ArpltnInforInqireSvc';
 const ALLOWED_ORIGIN = 'https://id01099050593-commits.github.io';
 const ALLOWED_GRIDS = new Set(['73,133', '61,127']); // config.json 지역 격자와 맞출 것
 
@@ -12,12 +13,12 @@ const kst = (msAgo = 0) => new Date(Date.now() + 9 * 3600e3 - msAgo);
 const ymd = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
 const baseOf = (d, minute) => ({ base_date: ymd(d), base_time: `${pad(d.getUTCHours())}${minute}` });
 
-async function call(op, params) {
+async function call(op, params, base = API, timeout = 8000) {
   const raw = (process.env.KMA_SERVICE_KEY || '').trim();
   if (!raw) throw new Error('KMA_SERVICE_KEY 환경변수가 없습니다');
   const key = raw.includes('%') ? decodeURIComponent(raw) : raw;
   const qs = new URLSearchParams({ serviceKey: key, pageNo: '1', numOfRows: '100', dataType: 'JSON', ...params });
-  const res = await fetch(`${API}/${op}?${qs}`, { signal: AbortSignal.timeout(8000) });
+  const res = await fetch(`${base}/${op}?${qs}`, { signal: AbortSignal.timeout(timeout) });
   const text = await res.text();
   let json;
   try {
@@ -31,9 +32,21 @@ async function call(op, params) {
   return json.response.body.items.item;
 }
 
-const num = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
+const num = (v) => (v === undefined || v === null || v === '' || v === '-' || isNaN(Number(v)) ? null : Number(v));
 
-async function live(nx, ny) {
+// 미세먼지 실시간 (에어코리아). 응답이 느릴 수 있어 짧게 기다리고 실패하면 생략
+async function air(station) {
+  try {
+    const items = await call('getMsrstnAcctoRltmMesureDnsty', { stationName: station, dataTerm: 'DAILY', returnType: 'json', ver: '1.3' }, AIR_API, 5000);
+    const it = items?.[0];
+    return it ? { station, time: it.dataTime, pm10: num(it.pm10Value), pm25: num(it.pm25Value), o3: num(it.o3Value) } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function live(nx, ny, station) {
+  const airP = station ? air(station) : Promise.resolve(null);
   // 초단기실황: 정시 관측, 약 40분 뒤 제공 → 최신이 아직 없으면 한 시간 전
   let ncst, base;
   for (const lag of [40, 100]) {
@@ -77,6 +90,7 @@ async function live(nx, ny) {
     rn1: obs.RN1 ?? null,
     sky,
     fcst,
+    air: await airP,
   };
 }
 
@@ -95,7 +109,8 @@ export async function GET(request) {
   if (!ALLOWED_GRIDS.has(`${nx},${ny}`)) return json({ error: 'not allowed' }, 404);
   try {
     // CDN 5분 캐시 (브라우저는 캐시하지 않음)
-    return json(await live(nx, ny), 200, { 'Cache-Control': 'no-store', 'CDN-Cache-Control': 'max-age=300' });
+    const station = (url.searchParams.get('station') || '').slice(0, 20);
+    return json(await live(nx, ny, station), 200, { 'Cache-Control': 'no-store', 'CDN-Cache-Control': 'max-age=300' });
   } catch (e) {
     return json({ error: String(e.message || e) }, 502, { 'Cache-Control': 'no-store' });
   }

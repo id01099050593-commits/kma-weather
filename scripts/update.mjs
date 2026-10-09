@@ -5,7 +5,12 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 const ROOT = new URL('..', import.meta.url);
 const OUT = new URL('docs/', ROOT);
 const MOCK = process.argv.includes('--mock');
-const API = 'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0';
+const SVC = {
+  vilage: 'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0',
+  uv: 'https://apis.data.go.kr/1360000/LivingWthrIdxServiceV5',
+  air: 'http://apis.data.go.kr/B552584/ArpltnInforInqireSvc',
+  station: 'http://apis.data.go.kr/B552584/MsrstnInfoInqireSvc',
+};
 
 const config = JSON.parse(await readFile(new URL('config.json', ROOT), 'utf8'));
 
@@ -91,19 +96,37 @@ function serviceKey() {
   return key.includes('%') ? decodeURIComponent(key) : key;
 }
 
-async function callPage(op, params, pageNo) {
-  const qs = new URLSearchParams({
-    serviceKey: serviceKey(),
+// GitHub 서버(해외)에서 apis.data.go.kr 접속이 막히는 경우가 있어,
+// 직접 접속이 네트워크 오류로 실패하면 서울 리전 Vercel 중계(/api/proxy)를 거쳐 호출한다.
+let directDown = false;
+async function fetchDataGo(svc, op, params, timeout = 20000) {
+  if (!directDown) {
+    try {
+      const qs = new URLSearchParams({ serviceKey: serviceKey(), ...params });
+      const res = await fetch(`${SVC[svc]}/${op}?${qs}`, { signal: AbortSignal.timeout(Math.min(timeout, 10000)) });
+      return { res, text: await res.text() };
+    } catch (e) {
+      if (!config.liveApi) throw e;
+      directDown = true;
+      console.warn(`직접 접속 실패(${e.cause?.code || e.message}) → 중계 서버 사용`);
+    }
+  }
+  const qs = new URLSearchParams({ svc, op, ...params });
+  const res = await fetch(`${config.liveApi}/proxy?${qs}`, { signal: AbortSignal.timeout(Math.max(timeout, 30000)) });
+  return { res, text: await res.text() };
+}
+
+async function callPage(op, params, pageNo, svc = 'vilage') {
+  const qs = {
     pageNo: String(pageNo),
     numOfRows: '1000',
     dataType: 'JSON',
     ...params,
-  });
+  };
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(`${API}/${op}?${qs}`, { signal: AbortSignal.timeout(20000) });
-      const text = await res.text();
+      const { res, text } = await fetchDataGo(svc, op, qs);
       let json;
       try {
         json = JSON.parse(text);
@@ -125,15 +148,83 @@ async function callPage(op, params, pageNo) {
   throw lastErr;
 }
 
-async function callApi(op, params) {
+async function callApi(op, params, svc = 'vilage') {
   const items = [];
   for (let page = 1; page <= 5; page++) {
-    const body = await callPage(op, params, page);
+    const body = await callPage(op, params, page, svc);
     const got = body?.items?.item ?? [];
     items.push(...got);
     if (!got.length || items.length >= Number(body.totalCount)) break;
   }
   return items;
+}
+
+// ---------- 미세먼지(에어코리아)·자외선(기상청 생활기상지수) ----------
+// 등급 기준: 환경부 통합대기 예보 기준(PM10·PM2.5 µg/m³, O3 ppm), 자외선 지수 기상청 기준
+const AIR_LV = ['좋음', '보통', '나쁨', '매우나쁨'];
+const airGrade = (v, cuts) => (v === null ? null : cuts.findIndex((c) => v <= c) === -1 ? 3 : cuts.findIndex((c) => v <= c));
+const uvGrade = (v) => (v === null ? null : v <= 2 ? 0 : v <= 5 ? 1 : v <= 7 ? 2 : v <= 10 ? 3 : 4);
+const UV_LV = ['낮음', '보통', '높음', '매우높음', '위험'];
+const numOrNull = (v) => (v === undefined || v === null || v === '' || v === '-' || isNaN(Number(v)) ? null : Number(v));
+
+// 측정소는 config의 airStation, 없으면 동 이름(umd)으로 가장 가까운 측정소를 찾아 docs/air-stations.json에 기억
+async function airStationFor(loc, cache) {
+  if (loc.airStation) return loc.airStation;
+  if (cache[loc.id]) return cache[loc.id];
+  if (!loc.umd) return null;
+  const { text: t1 } = await fetchDataGo('station', 'getTMStdrCrdnt', { umdName: loc.umd, returnType: 'json', numOfRows: '50', pageNo: '1' }, 30000);
+  const cands = JSON.parse(t1)?.response?.body?.items ?? [];
+  const tm = cands.find((c) => !loc.sgg || `${c.sidoName} ${c.sggName}`.includes(loc.sgg)) ?? cands[0];
+  if (!tm) return null;
+  const { text: t2 } = await fetchDataGo('station', 'getNearbyMsrstnList', { tmX: tm.tmX, tmY: tm.tmY, returnType: 'json', ver: '1.1' }, 30000);
+  const st = JSON.parse(t2)?.response?.body?.items?.[0]?.stationName ?? null;
+  if (st) {
+    cache[loc.id] = st;
+    console.log(`${loc.name} 미세먼지 측정소: ${st}`);
+  }
+  return st;
+}
+
+async function fetchAir(station) {
+  const { text } = await fetchDataGo('air', 'getMsrstnAcctoRltmMesureDnsty', {
+    stationName: station, dataTerm: 'DAILY', returnType: 'json', ver: '1.3', numOfRows: '1', pageNo: '1',
+  }, 30000);
+  const it = JSON.parse(text)?.response?.body?.items?.[0];
+  if (!it) return null;
+  const pm10 = numOrNull(it.pm10Value), pm25 = numOrNull(it.pm25Value), o3 = numOrNull(it.o3Value);
+  return {
+    station,
+    time: it.dataTime,
+    pm10, pm25, o3,
+    pm10Grade: airGrade(pm10, [30, 80, 150]),
+    pm25Grade: airGrade(pm25, [15, 35, 75]),
+    o3Grade: airGrade(o3, [0.03, 0.09, 0.15]),
+  };
+}
+
+// 자외선 지수: 06시·18시 발표, h0·h3·h6… = 발표 시각부터 3시간 간격
+async function fetchUv(areaNo, now) {
+  const h = now.getUTCHours();
+  const b = new Date(now.getTime());
+  let bh = 18;
+  if (h < 6) b.setUTCDate(b.getUTCDate() - 1);
+  else if (h < 18) bh = 6;
+  const time = ymd(b) + pad(bh);
+  const items = await callApi('getUVIdxV5', { areaNo, time }, 'uv');
+  const it = items[0];
+  if (!it) return null;
+  const baseMs = Date.UTC(+time.slice(0, 4), +time.slice(4, 6) - 1, +time.slice(6, 8), bh);
+  const slot = Math.max(0, Math.floor((now.getTime() - baseMs) / (3 * 3600e3)) * 3);
+  const value = numOrNull(it['h' + slot]);
+  // 오늘 남은 시간 중 최고값 (오늘 날짜 범위의 슬롯)
+  let todayMax = value;
+  for (let k = slot; k <= 75; k += 3) {
+    const at = new Date(baseMs + k * 3600e3);
+    if (ymd(at) !== ymd(now)) break;
+    const v = numOrNull(it['h' + k]);
+    if (v !== null && (todayMax === null || v > todayMax)) todayMax = v;
+  }
+  return { value, grade: uvGrade(value), todayMax, todayMaxGrade: uvGrade(todayMax), issued: time };
 }
 
 // ---------- 테스트용 가짜 데이터 (API와 같은 형식) ----------
@@ -279,7 +370,7 @@ function build(loc, grid, fcstItems, ncstItems, yestTemp, now, base) {
 // 매 실행마다 지난 23시간을 기록해 두고, 다음 날 같은 시각과 비교한다.
 const histKey = (b) => b.base_date + b.base_time.slice(0, 2);
 
-async function fetchLocation(loc, now, index, hist) {
+async function fetchLocation(loc, now, index, hist, stations) {
   // config.json에 nx, ny를 적으면 그 격자를 그대로 사용 (기상청 격자 엑셀 값으로 고정할 때)
   const grid = loc.nx && loc.ny ? { nx: loc.nx, ny: loc.ny } : toGrid(loc.lat, loc.lon);
   const vBase = vilageBase(now);
@@ -324,7 +415,25 @@ async function fetchLocation(loc, now, index, hist) {
     if (filled) console.log(`${loc.name} 관측 기록 ${filled}시간 추가`);
   }
   const yestTemp = hist[histKey(ncstBase(now, 24))];
-  return build(loc, grid, mergeFcst(latest, early), ncst, yestTemp ?? null, now, vBase);
+  const out = build(loc, grid, mergeFcst(latest, early), ncst, yestTemp ?? null, now, vBase);
+  if (MOCK) {
+    out.current.air = { station: '테스트측정소', time: '', pm10: 24 + index * 30, pm25: 12 + index * 14, o3: 0.031, pm10Grade: index ? 1 : 0, pm25Grade: index ? 1 : 0, o3Grade: 1 };
+    out.current.uv = { value: 4, grade: 1, todayMax: 5, todayMaxGrade: 1 };
+  } else {
+    const soft = async (label, fn) => {
+      try {
+        return await fn();
+      } catch (e) {
+        console.warn(`${loc.name} ${label} 실패, 생략: ${e.message}`);
+        return null;
+      }
+    };
+    const station = await soft('미세먼지 측정소 찾기', () => airStationFor(loc, stations));
+    out.airStation = station;
+    out.current.air = station ? await soft('미세먼지', () => fetchAir(station)) : null;
+    out.current.uv = loc.uvArea ? await soft('자외선', () => fetchUv(loc.uvArea, now)) : null;
+  }
+  return out;
 }
 
 // ---------- 아이콘 (SVG 심볼, 64x64) ----------
@@ -439,6 +548,9 @@ function hourlyCharts(loc, today) {
   return weather + rain + wind + hum;
 }
 
+const airChip = (label, key, grade, value) =>
+  `<li data-k="${key}" title="${label} ${value ?? '-'}"><span>${label}</span><b class="lv${grade ?? 'x'}">${grade != null ? AIR_LV[grade] : '-'}</b></li>`;
+
 function renderPanel(loc, today, nowHour) {
   const c = loc.current;
   SUN = { rise: toMin(c.sunrise), set: toMin(c.sunset) };
@@ -465,7 +577,7 @@ function renderPanel(loc, today, nowHour) {
     })
     .join('');
 
-  return `<section class="panel" id="p-${esc(loc.id)}" aria-label="${esc(loc.name)} 날씨" data-nx="${loc.nx}" data-ny="${loc.ny}" data-lat="${loc.lat}" data-lon="${loc.lon}" data-rise="${c.sunrise}" data-set="${c.sunset}" data-sky="${esc(c.sky ?? '')}">
+  return `<section class="panel" id="p-${esc(loc.id)}" aria-label="${esc(loc.name)} 날씨" data-nx="${loc.nx}" data-ny="${loc.ny}" data-lat="${loc.lat}" data-lon="${loc.lon}" data-station="${esc(loc.airStation ?? '')}" data-rise="${c.sunrise}" data-set="${c.sunset}" data-sky="${esc(c.sky ?? '')}">
     <div class="card now">
       <p class="loc">${esc(loc.detail)}</p>
       <div class="hero">
@@ -482,11 +594,12 @@ function renderPanel(loc, today, nowHour) {
         <div><dt data-k="wind">${esc(c.wind)}</dt><dd data-k="wsd">${c.wsd}m/s</dd></div>
       </dl>
       <ul class="chips">
+        ${airChip('미세먼지', 'pm10', c.air?.pm10Grade, c.air?.pm10)}
+        ${airChip('초미세먼지', 'pm25', c.air?.pm25Grade, c.air?.pm25)}
+        <li data-k="uv" title="자외선 지수 ${c.uv?.value ?? '-'}"><span>자외선</span><b class="lv${c.uv?.grade ?? 'x'}">${c.uv?.grade != null ? UV_LV[c.uv.grade] : '-'}</b></li>
         <li><span>강수확률</span><b class="${c.pop >= 60 ? 'blue' : ''}">${c.pop}%</b></li>
-        ${c.rn1 ? `<li><span>1시간 강수</span><b class="blue">${esc(String(c.rn1).replace(/\s*mm$/, ''))}mm</b></li>` : td ? `<li><span>최저/최고</span><b><span class="lo">${td.min}°</span>/<span class="hi">${td.max}°</span></b></li>` : ''}
-        <li><span>일출</span><b>${c.sunrise}</b></li>
-        <li><span>일몰</span><b>${c.sunset}</b></li>
       </ul>
+      <p class="airsrc" data-k="airsrc">${c.air ? `미세먼지 ${esc(c.air.station)} 측정소${c.air.time ? ' · ' + esc(c.air.time.slice(11)) : ''}` : ''}${c.uv?.todayMax != null ? `${c.air ? ' · ' : ''}오늘 자외선 최고 ${c.uv.todayMax}(${UV_LV[c.uv.todayMaxGrade]})` : ''}${td ? ` · 최저 ${td.min}° 최고 ${td.max}°` : ''}</p>
     </div>
 
     <div class="card skycard" data-k="skycard" hidden>
@@ -584,6 +697,10 @@ button{font:inherit;cursor:pointer}
 .chips span{font-size:12px;color:var(--muted)}
 .chips b{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .blue{color:var(--blue)}
+.lv0{color:var(--blue)}.lv1{color:#12a150}.lv2{color:#f08c00}.lv3{color:var(--red)}.lv4{color:#9c36b5}.lvx{color:var(--faint)}
+html[data-mode="dark"] .lv1{color:#4cd18a}html[data-mode="dark"] .lv2{color:#ffb347}
+.airsrc{font-size:11px;color:var(--muted);text-align:center;margin-top:10px}
+.airsrc:empty{display:none}
 .head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
 h2{font-size:17px;font-weight:800}
 .cap{font-size:12px;color:var(--muted)}
@@ -746,7 +863,7 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
     }
     document.querySelectorAll('.panel[data-nx]').forEach(async (p) => {
       try {
-        const r = await fetch(LIVE + '/now?nx=' + p.dataset.nx + '&ny=' + p.dataset.ny, { cache: 'no-store' });
+        const r = await fetch(LIVE + '/now?nx=' + p.dataset.nx + '&ny=' + p.dataset.ny + (p.dataset.station ? '&station=' + encodeURIComponent(p.dataset.station) : ''), { cache: 'no-store' });
         if (!r.ok) return;
         const d = await r.json();
         if (d.t1h === null || d.t1h === undefined) return;
@@ -779,6 +896,17 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
         if (d.wsd !== null) { q('wsd').textContent = d.wsd + 'm/s'; q('wind').textContent = windName(d.vec); }
         q('feels').textContent = Math.round(feelsLike(d.t1h, d.reh ?? 50, d.wsd ?? 0, +d.baseDate.slice(4, 6)) * 10) / 10 + '°';
         if (q('now')) q('now').textContent = Math.round(d.t1h) + '°';
+        if (d.air) {
+          const LV = ['좋음', '보통', '나쁨', '매우나쁨'];
+          const g = (v, cuts) => (v === null ? null : cuts.findIndex((c) => v <= c) === -1 ? 3 : cuts.findIndex((c) => v <= c));
+          for (const [key, v, cuts, label] of [['pm10', d.air.pm10, [30, 80, 150], '미세먼지'], ['pm25', d.air.pm25, [15, 35, 75], '초미세먼지']]) {
+            const li = q(key), gr = g(v, cuts);
+            if (!li || gr === null) continue;
+            li.title = label + ' ' + v;
+            li.querySelector('b').className = 'lv' + gr;
+            li.querySelector('b').textContent = LV[gr];
+          }
+        }
         // 어제 같은 시각 관측값(history.json)과 비교
         const y = new Date(Date.UTC(+cd.slice(0, 4), +cd.slice(4, 6) - 1, +cd.slice(6, 8), hh) - 86400e3);
         const prev = HIST?.[p.id.slice(2)]?.[y.getUTCFullYear() + p2(y.getUTCMonth() + 1) + p2(y.getUTCDate()) + p2(y.getUTCHours())];
@@ -945,10 +1073,15 @@ let history = {};
 try {
   history = JSON.parse(await readFile(HISTORY, 'utf8'));
 } catch {}
+const STATIONS = new URL('air-stations.json', OUT);
+let stations = {};
+try {
+  stations = JSON.parse(await readFile(STATIONS, 'utf8'));
+} catch {}
 const oldest = histKey(ncstBase(now, 72)); // 3일 지난 기록은 삭제
 for (const [i, loc] of config.locations.entries()) {
   const hist = Object.fromEntries(Object.entries(history[loc.id] ?? {}).filter(([k]) => k >= oldest));
-  locations.push(await fetchLocation(loc, now, i, hist));
+  locations.push(await fetchLocation(loc, now, i, hist, stations));
   history[loc.id] = Object.fromEntries(Object.entries(hist).sort());
 }
 
@@ -962,6 +1095,7 @@ await mkdir(OUT, { recursive: true });
 await writeFile(new URL('data.json', OUT), JSON.stringify(data, null, 2) + '\n');
 await writeFile(new URL('index.html', OUT), render(data, ymd(now), now.getUTCHours() + now.getUTCMinutes() / 60 + 1e-6));
 await writeFile(new URL('.nojekyll', OUT), '');
+if (!MOCK) await writeFile(STATIONS, JSON.stringify(stations, null, 1) + '\n');
 if (!MOCK) await writeFile(HISTORY, JSON.stringify(history, null, 1) + '\n');
 for (const l of locations) {
   const c = l.current;

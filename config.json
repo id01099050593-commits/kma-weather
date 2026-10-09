@@ -2,7 +2,7 @@
   "title": "날씨",
   "liveApi": "https://kma-weather-relay.vercel.app/api",
   "locations": [
-    { "id": "chuncheon", "name": "춘천", "detail": "효자동 기준", "lat": 37.8687, "lon": 127.7364 },
-    { "id": "seoul", "name": "서울", "detail": "황학동 기준", "lat": 37.5679, "lon": 127.0215 }
+    { "id": "chuncheon", "name": "춘천", "detail": "효자동 기준", "lat": 37.8687, "lon": 127.7364, "umd": "효자동", "sgg": "춘천", "uvArea": "5111000000" },
+    { "id": "seoul", "name": "서울", "detail": "황학동 기준", "lat": 37.5679, "lon": 127.0215, "umd": "황학동", "sgg": "중구", "uvArea": "1114000000" }
   ]
 }
