@@ -590,8 +590,10 @@ function renderPanel(loc, today, nowHour) {
         <div class="tempbox">
           <span class="lab" data-k="lab">현재 온도</span>
           <p class="temp"><b data-k="temp">${c.temp}</b><span>°</span></p>
+          ${td ? `<p class="hl"><span>최저</span><b class="lo">${td.min}°</b><i></i><span>최고</span><b class="hi">${td.max}°</b></p>` : ''}
         </div>
       </div>
+      <div class="arcwrap arctopwrap"><svg class="arc" viewBox="0 0 320 136" data-k="arctop" aria-hidden="true"></svg></div>
       </div>
       <div class="arcfoot"><span data-k="aL"></span><span class="mid" data-k="aM"></span><span data-k="aR"></span></div>
       <p class="sum"><b data-k="text">${esc(c.text)}</b><span data-k="vs">${vs}</span></p>
@@ -606,7 +608,7 @@ function renderPanel(loc, today, nowHour) {
         ${gradeChip('자외선', 'uv', c.uv?.grade, c.uv?.value, '', UV_LV)}
         ${gradeChip('강수확률', 'pop', popGrade(c.pop), c.pop, '%', POP_LV)}
       </ul>
-      <p class="airsrc" data-k="airsrc">${c.air ? `미세먼지 ${esc(c.air.station)} 측정소${c.air.time ? ' · ' + esc(c.air.time.slice(11)) : ''}` : ''}${c.uv?.todayMax != null ? `${c.air ? ' · ' : ''}오늘 자외선 최고 ${c.uv.todayMax}(${UV_LV[c.uv.todayMaxGrade]})` : ''}${td ? ` · 최저 ${td.min}° 최고 ${td.max}°` : ''}</p>
+      <p class="airsrc" data-k="airsrc">${c.air ? `미세먼지 ${esc(c.air.station)} 측정소${c.air.time ? ' · ' + esc(c.air.time.slice(11)) : ''}` : ''}${c.uv?.todayMax != null ? `${c.air ? ' · ' : ''}오늘 자외선 최고 ${c.uv.todayMax}(${UV_LV[c.uv.todayMaxGrade]})` : ''}</p>
     </div>
 
     <div class="card">
@@ -654,8 +656,8 @@ function render(data, today, nowHour) {
 <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
-:root{--bg:#f2f4f7;--sky1:#e9f2ff;--sky2:#f2f4f7;--card:rgba(255,255,255,.93);--text:#1e1e23;--sub:#505660;--muted:#8a919c;--faint:#b5bbc4;--line:#eef0f3;--green:#03c75a;--blue:#3d7bf7;--red:#f2484a;--chip:#f5f7f9;--top:rgba(255,255,255,.72);--seg-on:#fff;--today:#f7fbf9;--dotfill:#fff}
-html[data-mode="dark"]{--card:rgba(20,27,50,.66);--text:#eef2f8;--sub:#c3cad6;--muted:#93a0b6;--faint:#5f6a82;--line:rgba(255,255,255,.08);--blue:#82adff;--red:#ff8686;--chip:rgba(255,255,255,.07);--top:rgba(10,14,34,.55);--seg-on:rgba(255,255,255,.16);--today:rgba(255,255,255,.06);--dotfill:#1a2240}
+:root{--bg:#f2f4f7;--sky1:#e9f2ff;--sky2:#f2f4f7;--card:rgba(255,255,255,.93);--text:#1e1e23;--sub:#505660;--muted:#8a919c;--faint:#b5bbc4;--line:#eef0f3;--green:#03c75a;--blue:#3d7bf7;--red:#f2484a;--chip:#f5f7f9;--top:rgba(255,255,255,.72);--seg-on:#fff;--today:#f7fbf9;--dotfill:#fff;--cardsolid:#fff}
+html[data-mode="dark"]{--card:rgba(20,27,50,.66);--text:#eef2f8;--sub:#c3cad6;--muted:#93a0b6;--faint:#5f6a82;--line:rgba(255,255,255,.08);--blue:#82adff;--red:#ff8686;--chip:rgba(255,255,255,.07);--top:rgba(10,14,34,.55);--seg-on:rgba(255,255,255,.16);--today:rgba(255,255,255,.06);--dotfill:#1a2240;--cardsolid:#1b2340}
 body::before{content:"";position:fixed;inset:0;z-index:-1;background:linear-gradient(180deg,var(--sky1) 0%,var(--sky2) 75%)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%}
@@ -683,6 +685,9 @@ button{font:inherit;cursor:pointer}
 .lab{font-size:13px;color:var(--muted);margin-bottom:-4px}
 .temp{font-size:58px;font-weight:700;letter-spacing:-.05em;line-height:1.1;font-variant-numeric:tabular-nums}
 .temp b{font-weight:inherit}
+.hl{display:flex;align-items:baseline;gap:4px;font-size:14px;margin-top:2px;color:var(--muted)}
+.hl b{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+.hl i{width:1px;height:11px;background:var(--faint);margin:0 5px;align-self:center}
 .temp span{font-weight:400;color:var(--sub);margin-left:2px}
 .sum{display:flex;justify-content:center;align-items:baseline;gap:8px;margin-top:10px;font-size:16px}
 .sum b{font-weight:800}
@@ -770,10 +775,15 @@ h2{font-size:17px;font-weight:800}
 .herowrap{position:relative;margin:2px -8px 0}
 .arcwrap{position:absolute;inset:0;z-index:0;pointer-events:none}
 .arcwrap[hidden]{display:none}
+.arctopwrap{z-index:2}
 .arc{display:block;width:100%;height:100%}
 .arc .below{display:none}
-.arc .hz{opacity:.6}
-.herowrap .arc .done{opacity:.75}
+.arc .hz{opacity:.5}
+.arc .track{fill:var(--chip);stroke:var(--line);stroke-width:1}
+.arc .hand{stroke-width:1.5;stroke-dasharray:2 3;opacity:.7}
+.arc .knob{stroke:var(--cardsolid);stroke-width:3}
+.herowrap .big{filter:drop-shadow(0 0 6px var(--cardsolid)) drop-shadow(0 0 2px var(--cardsolid))}
+.herowrap .temp,.herowrap .lab,.herowrap .hl{text-shadow:0 0 10px var(--cardsolid),0 0 3px var(--cardsolid),0 0 1px var(--cardsolid)}
 .herowrap .hero{position:relative;z-index:1;min-height:150px;margin-top:0;padding-top:8px}
 .arc .hz{stroke:var(--faint);stroke-width:1}
 .arc .path{fill:none;stroke:var(--faint);stroke-width:2;stroke-dasharray:3 5;stroke-linecap:round}
@@ -964,10 +974,13 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
   };
   const hm = (d) => (d && !isNaN(d) ? p2(d.getHours()) + ':' + p2(d.getMinutes()) : '--:--');
   const left = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return (m >= 60 ? Math.floor(m / 60) + '시간 ' : '') + (m % 60) + '분'; };
-  const X0 = 26, X1 = 294, HY = 108, AH = 84;
-  const pt = (f) => [X0 + (X1 - X0) * f, HY - AH * Math.sin(Math.PI * f)];
-  const arcPath = (f0, f1) => { let d = ''; for (let i = 0; i <= 48; i++) { const [x, y] = pt(f0 + (f1 - f0) * (i / 48)); d += (i ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1); } return d; };
-  const STARS = Array.from({ length: 26 }, (_, i) => [((i * 97) % 300) + 10, ((i * 53) % 92) + 6, (i % 3) * 0.35 + 0.6]);
+  const CX = 160, HY = 112, R = 96, X0 = CX - R;
+  const pt = (f) => [CX - R * Math.cos(Math.PI * f), HY - R * Math.sin(Math.PI * f)];
+  // 전체 반원(남은 시간)과, 지나온 만큼 채워지는 부채꼴(뽀모도로 타이머처럼)
+  const dome = () => 'M' + X0 + ',' + HY + 'A' + R + ',' + R + ' 0 0 1 ' + (CX + R) + ',' + HY + 'Z';
+  const fan = (f) => { const [x, y] = pt(Math.min(Math.max(f, 0), 1)); return 'M' + CX + ',' + HY + 'L' + X0 + ',' + HY + 'A' + R + ',' + R + ' 0 0 1 ' + x.toFixed(1) + ',' + y.toFixed(1) + 'Z'; };
+  const grad = (id, c) => '<defs><radialGradient id="' + id + '" gradientUnits="userSpaceOnUse" cx="' + CX + '" cy="' + HY + '" r="' + R + '"><stop offset="0" stop-color="' + c + '" stop-opacity=".08"/><stop offset="1" stop-color="' + c + '" stop-opacity=".42"/></radialGradient></defs>';
+  const STARS = Array.from({ length: 40 }, (_, i) => [((i * 97) % 300) + 10, ((i * 53) % 104) + 4, (i % 3) * 0.35 + 0.6]);
   const moonShape = (p, r) => {
     const k = Math.cos(2 * Math.PI * p), rx = (r * Math.abs(k)).toFixed(2);
     return p < 0.5
@@ -1011,12 +1024,16 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
         root.dataset.mode = alt < -3 ? 'dark' : 'light';
         document.querySelector('meta[name=theme-color]')?.setAttribute('content', c1);
       }
+      let top = '';
       let g = '<line x1="8" x2="312" y1="' + HY + '" y2="' + HY + '" class="hz"/><rect x="8" y="' + (HY + 1) + '" width="304" height="26" rx="6" class="below"/>';
       if (now >= t.sunrise && now < t.sunset) {
         const f = (now - t.sunrise) / (t.sunset - t.sunrise);
         const [x, y] = pt(f);
-        g += '<path d="' + arcPath(0, 1) + '" class="path"/><path d="' + arcPath(0, f) + '" class="done" stroke="#ffb31a"/>' +
-          '<circle cx="' + x + '" cy="' + y + '" r="20" fill="#ffc21f" opacity=".22"/><circle cx="' + x + '" cy="' + y + '" r="11" fill="#ffc21f"/>';
+        const gid = 'sunfan-' + p.id;
+        g += grad(gid, '#ffb31a') + '<path d="' + dome() + '" class="track"/><path d="' + fan(f) + '" fill="url(#' + gid + ')"/>' +
+          '<line x1="' + CX + '" y1="' + HY + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" class="hand" stroke="#ffb31a"/>' +
+          '';
+        top = '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="13" fill="#ffc21f" opacity=".25"/><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="7.5" fill="#ffc21f" class="knob"/>';
         q('skyTitle').textContent = '해';
         q('skyCap').textContent = '태양 고도 ' + Math.round(alt) + '°';
         q('aL').innerHTML = '일출 <b>' + hm(t.sunrise) + '</b>';
@@ -1025,15 +1042,16 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
       } else {
         const mw = moonWindow(+now, lat, lon);
         const ill = SunCalc.getMoonIllumination(now);
-        g = STARS.map(([sx, sy, r]) => '<circle cx="' + sx + '" cy="' + sy + '" r="' + r + '" fill="#fff" opacity="' + (0.3 + (sx % 5) / 10).toFixed(2) + '"/>').join('') + g;
-        g += '<path d="' + arcPath(0, 1) + '" class="path"/>';
+        g = STARS.filter(([sx, sy]) => Math.hypot(sx - CX, sy - HY) > R + 6).map(([sx, sy, r]) => '<circle cx="' + sx + '" cy="' + sy + '" r="' + r + '" fill="#fff" opacity="' + (0.3 + (sx % 5) / 10).toFixed(2) + '"/>').join('') + g;
+        g += '<path d="' + dome() + '" class="track"/>';
         let mx = X0, my = HY;
         if (mw.up) {
           const f = (now - mw.rise) / (mw.set - mw.rise);
           [mx, my] = pt(f);
-          g += '<path d="' + arcPath(0, f) + '" class="done" stroke="#cfd8ea"/>';
+          const gid = 'moonfan-' + p.id;
+          g += grad(gid, '#c9d6f2') + '<path d="' + fan(f) + '" fill="url(#' + gid + ')"/><line x1="' + CX + '" y1="' + HY + '" x2="' + mx.toFixed(1) + '" y2="' + my.toFixed(1) + '" class="hand" stroke="#c9d6f2"/>';
         }
-        g += '<g transform="translate(' + mx.toFixed(1) + ' ' + my.toFixed(1) + ')"' + (mw.up ? '' : ' opacity=".45"') + '><circle r="22" fill="#e9eefb" opacity=".12"/><circle r="12" fill="#3a4466"/><path d="' + moonShape(ill.phase, 12) + '" fill="#f4f1de"/></g>';
+        top = '<g transform="translate(' + mx.toFixed(1) + ' ' + my.toFixed(1) + ')"' + (mw.up ? '' : ' opacity=".5"') + '><circle r="11" fill="#3a4466" class="knob"/><path d="' + moonShape(ill.phase, 11) + '" fill="#f4f1de"/></g>';
         q('skyTitle').textContent = '달';
         q('skyCap').textContent = phaseName(ill.phase) + ' · 밝기 ' + Math.round(ill.fraction * 100) + '%';
         q('aL').innerHTML = '월출 <b>' + hm(mw.rise) + '</b>';
@@ -1047,6 +1065,7 @@ ${data.locations.map((l) => renderPanel(l, today, nowHour)).join('\n')}
         }
       }
       q('arc').innerHTML = g;
+      q('arctop').innerHTML = top;
       q('skycard').hidden = false;
     });
   };
