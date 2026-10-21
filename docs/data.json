@@ -1,7 +1,7 @@
 {
   "title": "날씨",
   "liveApi": "https://kma-weather-relay.vercel.app/api",
-  "updatedAt": "10월 22일 05:44",
+  "updatedAt": "10월 22일 08:41",
   "locations": [
     {
       "id": "chuncheon",
@@ -11,18 +11,18 @@
       "lon": 127.7364,
       "nx": 73,
       "ny": 133,
-      "issuedAt": "10/22 05:00",
+      "issuedAt": "10/22 08:00",
       "current": {
-        "temp": 0.9,
+        "temp": 1.9,
         "sky": "1",
         "pty": "0",
         "text": "맑음",
-        "reh": 90,
-        "wsd": 0.2,
-        "vec": 90,
-        "wind": "동풍",
-        "feels": 0.9,
-        "vsYesterday": -12.9,
+        "reh": 95,
+        "wsd": 0.1,
+        "vec": 135,
+        "wind": "남동풍",
+        "feels": 1.9,
+        "vsYesterday": -10.2,
         "pop": 0,
         "rn1": null,
         "observed": true,
@@ -30,62 +30,23 @@
         "sunset": "17:44",
         "air": {
           "station": "중앙로",
-          "time": "2026-10-22 05:00",
-          "pm10": 22,
-          "pm25": 5,
-          "o3": 0.018,
+          "time": "2026-10-22 08:00",
+          "pm10": 25,
+          "pm25": 4,
+          "o3": 0.007,
           "pm10Grade": 0,
           "pm25Grade": 0,
           "o3Grade": 0
         },
         "uv": {
-          "value": 0,
+          "value": 1,
           "grade": 0,
           "todayMax": 5,
           "todayMaxGrade": 1,
-          "issued": "2026102118"
+          "issued": "2026102206"
         }
       },
       "hourly": [
-        {
-          "date": "20261022",
-          "hour": 5,
-          "temp": 2,
-          "sky": "1",
-          "pty": "0",
-          "pop": 0,
-          "pcp": null,
-          "sno": null,
-          "reh": 75,
-          "wsd": 0.4,
-          "vec": 270
-        },
-        {
-          "date": "20261022",
-          "hour": 6,
-          "temp": 1,
-          "sky": "1",
-          "pty": "0",
-          "pop": 0,
-          "pcp": null,
-          "sno": null,
-          "reh": 80,
-          "wsd": 0.6,
-          "vec": 99
-        },
-        {
-          "date": "20261022",
-          "hour": 7,
-          "temp": 1,
-          "sky": "1",
-          "pty": "0",
-          "pop": 0,
-          "pcp": null,
-          "sno": null,
-          "reh": 80,
-          "wsd": 0.3,
-          "vec": 108
-        },
         {
           "date": "20261022",
           "hour": 8,
@@ -95,9 +56,9 @@
           "pop": 0,
           "pcp": null,
           "sno": null,
-          "reh": 70,
-          "wsd": 0.3,
-          "vec": 108
+          "reh": 65,
+          "wsd": 0.2,
+          "vec": 0
         },
         {
           "date": "20261022",
@@ -110,7 +71,7 @@
           "sno": null,
           "reh": 60,
           "wsd": 0.1,
-          "vec": 45
+          "vec": 270
         },
         {
           "date": "20261022",
@@ -122,8 +83,8 @@
           "pcp": null,
           "sno": null,
           "reh": 50,
-          "wsd": 0.3,
-          "vec": 288
+          "wsd": 0.2,
+          "vec": 270
         },
         {
           "date": "20261022",
@@ -135,8 +96,8 @@
           "pcp": null,
           "sno": null,
           "reh": 45,
-          "wsd": 0.3,
-          "vec": 288
+          "wsd": 0.2,
+          "vec": 270
         },
         {
           "date": "20261022",
@@ -148,7 +109,7 @@
           "pcp": null,
           "sno": null,
           "reh": 40,
-          "wsd": 0.4,
+          "wsd": 0.2,
           "vec": 315
         },
         {
@@ -161,8 +122,8 @@
           "pcp": null,
           "sno": null,
           "reh": 40,
-          "wsd": 0.6,
-          "vec": 297
+          "wsd": 0.5,
+          "vec": 292
         },
         {
           "date": "20261022",
@@ -174,7 +135,7 @@
           "pcp": null,
           "sno": null,
           "reh": 40,
-          "wsd": 0.8,
+          "wsd": 0.7,
           "vec": 315
         },
         {
@@ -187,8 +148,8 @@
           "pcp": null,
           "sno": null,
           "reh": 35,
-          "wsd": 1.2,
-          "vec": 309
+          "wsd": 1.1,
+          "vec": 308
         },
         {
           "date": "20261022",
@@ -200,8 +161,8 @@
           "pcp": null,
           "sno": null,
           "reh": 40,
-          "wsd": 1.1,
-          "vec": 301
+          "wsd": 1,
+          "vec": 299
         },
         {
           "date": "20261022",
@@ -213,8 +174,8 @@
           "pcp": null,
           "sno": null,
           "reh": 50,
-          "wsd": 0.8,
-          "vec": 277
+          "wsd": 0.7,
+          "vec": 270
         },
         {
           "date": "20261022",
@@ -226,8 +187,8 @@
           "pcp": null,
           "sno": null,
           "reh": 60,
-          "wsd": 0.5,
-          "vec": 349
+          "wsd": 0.4,
+          "vec": 0
         },
         {
           "date": "20261022",
@@ -239,8 +200,8 @@
           "pcp": null,
           "sno": null,
           "reh": 65,
-          "wsd": 1.1,
-          "vec": 59
+          "wsd": 1,
+          "vec": 61
         },
         {
           "date": "20261022",
@@ -252,8 +213,8 @@
           "pcp": null,
           "sno": null,
           "reh": 70,
-          "wsd": 1.3,
-          "vec": 86
+          "wsd": 1.2,
+          "vec": 90
         },
         {
           "date": "20261022",
@@ -265,7 +226,7 @@
           "pcp": null,
           "sno": null,
           "reh": 80,
-          "wsd": 1,
+          "wsd": 0.9,
           "vec": 84
         },
         {
@@ -291,8 +252,8 @@
           "pcp": null,
           "sno": null,
           "reh": 90,
-          "wsd": 0.8,
-          "vec": 69
+          "wsd": 0.7,
+          "vec": 74
         },
         {
           "date": "20261023",
@@ -304,8 +265,8 @@
           "pcp": null,
           "sno": null,
           "reh": 90,
-          "wsd": 0.8,
-          "vec": 69
+          "wsd": 0.7,
+          "vec": 74
         },
         {
           "date": "20261023",
@@ -317,7 +278,7 @@
           "pcp": null,
           "sno": null,
           "reh": 90,
-          "wsd": 1.1,
+          "wsd": 0.9,
           "vec": 45
         },
         {
@@ -330,8 +291,8 @@
           "pcp": null,
           "sno": null,
           "reh": 90,
-          "wsd": 1.3,
-          "vec": 36
+          "wsd": 1.2,
+          "vec": 35
         },
         {
           "date": "20261023",
@@ -343,8 +304,8 @@
           "pcp": null,
           "sno": null,
           "reh": 90,
-          "wsd": 1,
-          "vec": 53
+          "wsd": 0.9,
+          "vec": 49
         },
         {
           "date": "20261023",
@@ -356,8 +317,47 @@
           "pcp": null,
           "sno": null,
           "reh": 95,
-          "wsd": 0.8,
+          "wsd": 0.7,
           "vec": 45
+        },
+        {
+          "date": "20261023",
+          "hour": 5,
+          "temp": 4,
+          "sky": "3",
+          "pty": "0",
+          "pop": 20,
+          "pcp": null,
+          "sno": null,
+          "reh": 95,
+          "wsd": 1,
+          "vec": 90
+        },
+        {
+          "date": "20261023",
+          "hour": 6,
+          "temp": 4,
+          "sky": "1",
+          "pty": "0",
+          "pop": 0,
+          "pcp": null,
+          "sno": null,
+          "reh": 90,
+          "wsd": 0.9,
+          "vec": 77
+        },
+        {
+          "date": "20261023",
+          "hour": 7,
+          "temp": 4,
+          "sky": "1",
+          "pty": "0",
+          "pop": 0,
+          "pcp": null,
+          "sno": null,
+          "reh": 90,
+          "wsd": 1.1,
+          "vec": 38
         }
       ],
       "daily": [
@@ -440,18 +440,18 @@
       "lon": 127.0215,
       "nx": 61,
       "ny": 127,
-      "issuedAt": "10/22 05:00",
+      "issuedAt": "10/22 08:00",
       "current": {
-        "temp": 8.2,
+        "temp": 7.7,
         "sky": "1",
         "pty": "0",
         "text": "맑음",
-        "reh": 56,
-        "wsd": 0.2,
-        "vec": 135,
-        "wind": "남동풍",
-        "feels": 8.2,
-        "vsYesterday": -7.3,
+        "reh": 57,
+        "wsd": 1.4,
+        "vec": 65,
+        "wind": "동북동풍",
+        "feels": 7.1,
+        "vsYesterday": -8,
         "pop": 0,
         "rn1": null,
         "observed": true,
@@ -459,7 +459,7 @@
         "sunset": "17:47",
         "air": {
           "station": "동대문구",
-          "time": "2026-10-22 05:00",
+          "time": "2026-10-22 08:00",
           "pm10": null,
           "pm25": null,
           "o3": null,
@@ -468,65 +468,26 @@
           "o3Grade": null
         },
         "uv": {
-          "value": 0,
+          "value": 1,
           "grade": 0,
           "todayMax": 5,
           "todayMaxGrade": 1,
-          "issued": "2026102118"
+          "issued": "2026102206"
         }
       },
       "hourly": [
         {
           "date": "20261022",
-          "hour": 5,
-          "temp": 6,
-          "sky": "1",
-          "pty": "0",
-          "pop": 0,
-          "pcp": null,
-          "sno": null,
-          "reh": 60,
-          "wsd": 0.9,
-          "vec": 302
-        },
-        {
-          "date": "20261022",
-          "hour": 6,
-          "temp": 6,
-          "sky": "1",
-          "pty": "0",
-          "pop": 0,
-          "pcp": null,
-          "sno": null,
-          "reh": 65,
-          "wsd": 0.9,
-          "vec": 302
-        },
-        {
-          "date": "20261022",
-          "hour": 7,
-          "temp": 6,
-          "sky": "1",
-          "pty": "0",
-          "pop": 0,
-          "pcp": null,
-          "sno": null,
-          "reh": 65,
-          "wsd": 0.8,
-          "vec": 315
-        },
-        {
-          "date": "20261022",
           "hour": 8,
-          "temp": 6,
+          "temp": 7,
           "sky": "1",
           "pty": "0",
           "pop": 0,
           "pcp": null,
           "sno": null,
           "reh": 55,
-          "wsd": 1.6,
-          "vec": 338
+          "wsd": 0.9,
+          "vec": 336
         },
         {
           "date": "20261022",
@@ -538,8 +499,8 @@
           "pcp": null,
           "sno": null,
           "reh": 50,
-          "wsd": 2.2,
-          "vec": 339
+          "wsd": 2.1,
+          "vec": 341
         },
         {
           "date": "20261022",
@@ -551,8 +512,8 @@
           "pcp": null,
           "sno": null,
           "reh": 40,
-          "wsd": 2.5,
-          "vec": 337
+          "wsd": 2.4,
+          "vec": 339
         },
         {
           "date": "20261022",
@@ -564,8 +525,8 @@
           "pcp": null,
           "sno": null,
           "reh": 40,
-          "wsd": 2.4,
-          "vec": 341
+          "wsd": 2.3,
+          "vec": 342
         },
         {
           "date": "20261022",
@@ -577,8 +538,8 @@
           "pcp": null,
           "sno": null,
           "reh": 35,
-          "wsd": 2.4,
-          "vec": 341
+          "wsd": 2.3,
+          "vec": 342
         },
         {
           "date": "20261022",
@@ -590,8 +551,8 @@
           "pcp": null,
           "sno": null,
           "reh": 35,
-          "wsd": 2.3,
-          "vec": 345
+          "wsd": 2.2,
+          "vec": 347
         },
         {
           "date": "20261022",
@@ -603,8 +564,8 @@
           "pcp": null,
           "sno": null,
           "reh": 35,
-          "wsd": 2.3,
-          "vec": 353
+          "wsd": 2.2,
+          "vec": 355
         },
         {
           "date": "20261022",
@@ -629,7 +590,7 @@
           "pcp": null,
           "sno": null,
           "reh": 35,
-          "wsd": 1.6,
+          "wsd": 1.5,
           "vec": 11
         },
         {
@@ -642,8 +603,8 @@
           "pcp": null,
           "sno": null,
           "reh": 40,
-          "wsd": 0.8,
-          "vec": 339
+          "wsd": 0.7,
+          "vec": 344
         },
         {
           "date": "20261022",
@@ -655,8 +616,8 @@
           "pcp": null,
           "sno": null,
           "reh": 50,
-          "wsd": 1,
-          "vec": 343
+          "wsd": 0.9,
+          "vec": 347
         },
         {
           "date": "20261022",
@@ -668,8 +629,8 @@
           "pcp": null,
           "sno": null,
           "reh": 55,
-          "wsd": 0.8,
-          "vec": 353
+          "wsd": 0.7,
+          "vec": 0
         },
         {
           "date": "20261022",
@@ -681,8 +642,8 @@
           "pcp": null,
           "sno": null,
           "reh": 60,
-          "wsd": 0.6,
-          "vec": 27
+          "wsd": 0.5,
+          "vec": 22
         },
         {
           "date": "20261022",
@@ -694,7 +655,7 @@
           "pcp": null,
           "sno": null,
           "reh": 65,
-          "wsd": 0.8,
+          "wsd": 0.7,
           "vec": 45
         },
         {
@@ -707,8 +668,8 @@
           "pcp": null,
           "sno": null,
           "reh": 70,
-          "wsd": 0.9,
-          "vec": 58
+          "wsd": 0.8,
+          "vec": 60
         },
         {
           "date": "20261022",
@@ -720,8 +681,8 @@
           "pcp": null,
           "sno": null,
           "reh": 70,
-          "wsd": 1.1,
-          "vec": 63
+          "wsd": 0.9,
+          "vec": 66
         },
         {
           "date": "20261023",
@@ -733,8 +694,8 @@
           "pcp": null,
           "sno": null,
           "reh": 75,
-          "wsd": 1.2,
-          "vec": 61
+          "wsd": 1.1,
+          "vec": 63
         },
         {
           "date": "20261023",
@@ -746,8 +707,8 @@
           "pcp": null,
           "sno": null,
           "reh": 70,
-          "wsd": 1.5,
-          "vec": 58
+          "wsd": 1.3,
+          "vec": 60
         },
         {
           "date": "20261023",
@@ -759,7 +720,7 @@
           "pcp": null,
           "sno": null,
           "reh": 75,
-          "wsd": 1.4,
+          "wsd": 1.3,
           "vec": 48
         },
         {
@@ -772,8 +733,8 @@
           "pcp": null,
           "sno": null,
           "reh": 80,
-          "wsd": 1,
-          "vec": 73
+          "wsd": 0.9,
+          "vec": 77
         },
         {
           "date": "20261023",
@@ -785,8 +746,47 @@
           "pcp": null,
           "sno": null,
           "reh": 80,
-          "wsd": 1.2,
-          "vec": 66
+          "wsd": 1,
+          "vec": 68
+        },
+        {
+          "date": "20261023",
+          "hour": 5,
+          "temp": 8,
+          "sky": "3",
+          "pty": "0",
+          "pop": 20,
+          "pcp": null,
+          "sno": null,
+          "reh": 85,
+          "wsd": 1.5,
+          "vec": 79
+        },
+        {
+          "date": "20261023",
+          "hour": 6,
+          "temp": 8,
+          "sky": "1",
+          "pty": "0",
+          "pop": 0,
+          "pcp": null,
+          "sno": null,
+          "reh": 85,
+          "wsd": 1.3,
+          "vec": 67
+        },
+        {
+          "date": "20261023",
+          "hour": 7,
+          "temp": 8,
+          "sky": "1",
+          "pty": "0",
+          "pop": 0,
+          "pcp": null,
+          "sno": null,
+          "reh": 85,
+          "wsd": 1.3,
+          "vec": 48
         }
       ],
       "daily": [
